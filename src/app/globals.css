@@ -1,0 +1,254 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Default: do not force input text color globally to prevent clashes on dark UIs */
+
+/* Opt-in helper for light cards/pages that want dark text */
+.light-input input,
+.light-input textarea,
+.light-input select {
+  color: #111827; /* text-gray-900 */
+}
+
+.light-input input::placeholder,
+.light-input textarea::placeholder {
+  color: #6b7280; /* text-gray-500 */
+}
+
+.light-input input:focus,
+.light-input textarea:focus,
+.light-input select:focus {
+  color: #111827;
+}
+
+/* ===== Dashboard 3D card system (palette + hover) ===== */
+.dash-3d-wrapper { position: relative; }
+.dash-3d-overflow { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.dash-3d-paint { position: absolute; clip-path: circle(50% at 50% 50%); }
+.dash-3d-paint.hover { animation-name: dash-3d-circleEx; animation-duration: 1.6s; animation-fill-mode: forwards; }
+@keyframes dash-3d-circleEx {
+  0% { transform: scale(1); width: 20px; height: 20px; }
+  100% { transform: scale(30); width: 100px; height: 100px; }
+}
+
+.dash-3d-scene { width: 100%; height: 100%; perspective: 1000px; user-select: none; cursor: pointer; }
+.dash-3d-cube { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: 0.5s transform; transform: rotateX(90deg); }
+.dash-3d-scene:hover .dash-3d-cube, .dash-3d-scene:active .dash-3d-cube, .dash-3d-scene:focus .dash-3d-cube, .dash-3d-scene:focus-visible .dash-3d-cube, .dash-3d-scene:focus-within .dash-3d-cube { transform: rotateX(0deg); }
+.dash-3d-icon, .dash-3d-icon-back { position: absolute; width: 100%; height: 100%; border-radius: 1rem; z-index: 1; backface-visibility: hidden; }
+.dash-3d-icon { transform: rotateX(0deg) translate3d(0,0,36px); }
+.dash-3d-icon-back { transform: rotateX(-90deg) translate3d(0,0,36px); display: grid; place-items: center; font-size: 1.4rem; }
+
+/* Ensure the 3D card container reserves vertical space so following sections don't overlap. */
+/* Mobile: slightly shorter; Desktop: taller. */
+@media (max-width: 767px) {
+  .dash-3d-scene { height: 18rem; }
+}
+@media (min-width: 768px) {
+  .dash-3d-scene { height: 22rem; }
+}
+
+.dash-3d-card-front { background: rgba(255,255,255,0.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.45); }
+/* Darker, tinted glass background on the back side to avoid stark white look after flip */
+.dash-3d-card-back {
+  /* Use palette tones with alpha to blend with the main gradient */
+  background:
+    linear-gradient(135deg,
+      rgba(158, 202, 214, 0.16) 0%,
+      rgba(245, 203, 203, 0.16) 60%,
+      rgba(255, 234, 234, 0.12) 100%
+    );
+  /* Base tint that remains even when a background-image is applied inline */
+  background-color: rgba(15, 23, 42, 0.5); /* slate-900 with 50% */
+  color: #0f172a; /* darker text for readability */
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ===== 3D text utility ===== */
+.text-3d {
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.12),
+    0 2px 0 rgba(0,0,0,0.12),
+    0 3px 0 rgba(0,0,0,0.10),
+    0 4px 0 rgba(0,0,0,0.08),
+    0 5px 10px rgba(0,0,0,0.25);
+  -webkit-font-smoothing: antialiased;
+}
+
+.text-3d-strong {
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.20),
+    0 2px 0 rgba(0,0,0,0.18),
+    0 3px 0 rgba(0,0,0,0.16),
+    0 4px 0 rgba(0,0,0,0.14),
+    0 6px 12px rgba(0,0,0,0.35),
+    0 10px 22px rgba(0,0,0,0.35);
+}
+
+/* Optional: subtle overlay helper when placing text on photos */
+.bg-photo-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Stronger dark overlay for better contrast over bright images */
+  background: linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.55));
+  border-radius: inherit;
+  z-index: 0;
+}
+
+/* Professional glass caption box for image overlays */
+.glass-caption {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  display: inline-block;
+  padding: 0.9rem 1rem;
+  color: #fff;
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1;
+}
+
+/* Floating 3D headline effect inspired by signup page */
+.quote3d {
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.22),
+    0 2px 0 rgba(0,0,0,0.2),
+    0 3px 0 rgba(0,0,0,0.18),
+    0 4px 0 rgba(0,0,0,0.16),
+    0 6px 12px rgba(0,0,0,0.35);
+  transform: perspective(800px) rotateX(6deg) rotateY(-4deg) translateZ(0);
+  animation: floatTilt 5s ease-in-out infinite;
+}
+
+@keyframes floatTilt {
+  0%   { transform: perspective(800px) rotateX(6deg) rotateY(-4deg) translateY(0); }
+  50%  { transform: perspective(800px) rotateX(4deg) rotateY(-2deg) translateY(-6px); }
+  100% { transform: perspective(800px) rotateX(6deg) rotateY(-4deg) translateY(0); }
+}
+
+/* ===== Balanced grids and card styles ===== */
+.actions-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem; /* 24px */
+}
+@media (min-width: 768px) {
+  .actions-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.tips-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  .tips-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.action-card,
+.tip-card {
+  position: relative;
+  padding: 1.25rem; /* 20px */
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.75); /* neutral-900/75 */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.action-card:hover,
+.tip-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 18px 36px rgba(0,0,0,0.22);
+  border-color: rgba(99, 102, 241, 0.35); /* indigo tint */
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.card-title { font-weight: 600; color: #E5E7EB; }
+.card-desc  { font-size: 0.9rem; color: #CBD5E1; }
+
+/* ===== Fancy glass-gradient hover (no global reset) ===== */
+.fancy-hover { position: relative; overflow: hidden; }
+.fancy-hover::before,
+.fancy-hover::after { content: ""; position: absolute; inset: 0; border-radius: 12px; pointer-events: none; transition: opacity .3s ease, transform .3s ease; opacity: 0; }
+/* Outer gradient rim */
+.fancy-hover::before { inset: -1px; background: linear-gradient(90deg, hsl(223, 90%, 60%), hsl(223, 90%, 50%)); filter: drop-shadow(0 6px 20px rgba(0,0,0,.25)); }
+/* Inner glass layer */
+.fancy-hover::after { inset: 1px; background: linear-gradient(90deg, rgba(255,255,255,.18), rgba(255,255,255,.06)); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.fancy-hover > * { position: relative; z-index: 1; }
+.fancy-hover:hover::before, .fancy-hover:hover::after { opacity: 1; }
+
+
+/* ===== Continuous premium aura for cards (no extra DOM needed) ===== */
+.card-aura { position: relative; isolation: isolate; }
+.card-aura::before,
+.card-aura::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 12px;
+  pointer-events: none;
+}
+/* Rotating conic-gradient shine */
+.card-aura::before {
+  background: conic-gradient(from 0deg at 50% 50%, rgba(16,185,129,0) 0deg, rgba(16,185,129,.45) 60deg, rgba(16,185,129,0) 120deg, rgba(16,185,129,.25) 200deg, rgba(16,185,129,0) 360deg);
+  filter: blur(14px);
+  opacity: .18;
+  z-index: 0;
+  animation: aura-rotate 12s linear infinite;
+}
+/* Inner glass veil with animated subtle grid */
+.card-aura::after {
+  inset: 1px;
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 80% at 60% 5%, rgba(255,255,255,.08), rgba(255,255,255,0) 60%),
+    repeating-linear-gradient(90deg, rgba(16,185,129,.06) 0 2px, transparent 2px 6px);
+  mix-blend-mode: screen;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  padding: 1px; /* to keep thin border look via mask */
+  opacity: .25;
+  animation: grid-shift 8s linear infinite;
+}
+
+@keyframes aura-rotate { to { transform: rotate(360deg); } }
+@keyframes grid-shift { 0% { background-position: 0 0, 0 0; } 100% { background-position: 0 0, 120px 0; } }
+
+/* ===== Neon glass hover (reference look) ===== */
+.neon-glass { position: relative; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); overflow: hidden; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.neon-glass > * { position: relative; z-index: 2; }
+.neon-glass::before { content: ""; position: absolute; inset: 10px; border-radius: 14px; background: linear-gradient(135deg, #1D4ED8 0%, #7C3AED 100%); filter: blur(10px); opacity: 0; transform: translate3d(0,0,0); transition: opacity .35s ease; z-index: 1; }
+.neon-glass::after { content: ""; position: absolute; inset: 0; border-radius: 12px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0)); pointer-events: none; z-index: 3; }
+.neon-glass:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 18px 40px rgba(30,58,138,0.35); border-color: rgba(255,255,255,0.22); }
+.neon-glass:hover::before { opacity: .9; }
+

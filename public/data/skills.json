@@ -1,0 +1,9 @@
+{
+  "technical": [
+    "JavaScript","TypeScript","React","Next.js","Node.js","Express","MongoDB","Mongoose","SQL","PostgreSQL","MySQL","Python","Django","Flask","Java","Spring","C","C++","C#",".NET","Go","Rust","Ruby","Rails","PHP","Laravel","HTML","CSS","Tailwind CSS","SASS","GraphQL","REST","gRPC","Docker","Kubernetes","AWS","GCP","Azure","CI/CD","Jest","React Testing Library","Playwright","Cypress","Git","Linux","Bash","Terraform","Ansible","Elasticsearch","Redis","RabbitMQ","Kafka","Microservices","System Design"
+  ],
+  "nonTechnical": [
+    "Communication","Leadership","Problem Solving","Teamwork","Time Management","Critical Thinking","Creativity","Adaptability","Mentoring","Project Management","Stakeholder Management","Presentation","Writing","Negotiation","Decision Making","Empathy","Collaboration"
+  ]
+}
+
