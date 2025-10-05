@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MoreVertical, X } from 'lucide-react';
 
 export default function Navbar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState(null);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -29,6 +31,7 @@ export default function Navbar() {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     router.push('/login');
+    setIsMobileOpen(false);
   };
 
   return (
@@ -40,7 +43,8 @@ export default function Navbar() {
               CareerHub
             </Link>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Desktop links */}
+          <div className="hidden sm:flex items-center gap-2">
             {isLoggedIn ? (
               <>
                 <Link href="/projects" className="relative px-3 py-2 rounded-md text-sm font-medium text-gray-800 transition-colors transform transition-transform duration-150 group hover:scale-105">
@@ -91,7 +95,47 @@ export default function Navbar() {
               </>
             )}
           </div>
+
+          {/* Mobile kebab menu */}
+          <div className="sm:hidden flex items-center">
+            <button
+              aria-label="Open menu"
+              className="p-2 rounded-md text-gray-700 hover:bg-gray-100 active:bg-gray-200"
+              onClick={() => setIsMobileOpen((o) => !o)}
+            >
+              {isMobileOpen ? <X size={22} /> : <MoreVertical size={22} />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile dropdown */}
+        {isMobileOpen && (
+          <div className="sm:hidden border-t border-neutral-200 py-2 animate-fade-in">
+            <div className="flex flex-col px-2">
+              {isLoggedIn ? (
+                <>
+                  <Link href="/projects" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Projects</Link>
+                  <Link href="/profile" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">My Profile</Link>
+                  <Link href="/my-applications" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">My Applications</Link>
+                  <Link href="/resume-analyzer" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Resume Analyzer</Link>
+                  <Link href="/interview-practice" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Interview Practice</Link>
+                  {role === 'developer' && (
+                    <Link href="/developer-dashboard" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Developer Dashboard</Link>
+                  )}
+                  {role === 'cofounder' && (
+                    <Link href="/dashboard" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Co-founder Dashboard</Link>
+                  )}
+                  <button onClick={handleLogout} className="mt-1 mx-2 bg-red-600 text-white px-3 py-2 rounded-md text-sm">Logout</button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Login</Link>
+                  <Link href="/signup" onClick={() => setIsMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-gray-800 hover:bg-gray-100">Sign Up</Link>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );
