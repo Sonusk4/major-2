@@ -15,6 +15,7 @@ export default function DeveloperDashboardPage() {
   const [myRequests, setMyRequests] = useState([]);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 
   // Inline component: a line of text where hovered word lights up,
@@ -72,6 +73,11 @@ export default function DeveloperDashboardPage() {
   };
 
   useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    
     const fetchUserProfile = async () => {
       setLoading(true);
       const token = localStorage.getItem('token');
@@ -112,6 +118,7 @@ export default function DeveloperDashboardPage() {
       }
     };
     fetchUserProfile();
+    return () => window.removeEventListener('keydown', onKey);
   }, [router]);
 
   if (loading) return <p className="text-center mt-10 text-slate-200">Loading dashboard...</p>;
@@ -121,15 +128,50 @@ export default function DeveloperDashboardPage() {
     <div className="min-h-screen min-h-dvh bg-gradient-to-br from-[#9ECAD6] via-[#F5CBCB] to-[#FFEAEA]" style={{ minHeight: '100vh' }}>
       <Navbar />
       <header className="bg-neutral-950/70 backdrop-blur border-b border-neutral-800">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between relative">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 text-3d">
             {renderGlowingHeading('Developer Dashboard')}
           </h1>
           <div className="flex items-center space-x-4">
-            <span className="text-slate-200/90 drop-shadow-[0_0_12px_rgba(168,85,247,0.4)]">
+            {/* Desktop welcome text */}
+            <span className="hidden md:inline text-slate-200/90 drop-shadow-[0_0_12px_rgba(168,85,247,0.4)]">
               Welcome back, {user?.name || 'Developer'}!
             </span>
+            {/* Mobile overflow menu trigger */}
+            <button
+              type="button"
+              className="md:hidden p-2 rounded-md hover:bg-neutral-800/60 focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-200"
+              aria-label="Open menu"
+              aria-haspopup="menu"
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((v) => !v)}
+            >
+              <i className="fas fa-ellipsis-v" />
+            </button>
           </div>
+
+          {/* Mobile dropdown menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden absolute right-4 top-[calc(100%+0.5rem)] z-50 glass rounded-lg p-2 w-60 animate-fade-in" role="menu" aria-label="Developer dashboard menu">
+              <div className="px-3 py-2 text-slate-100/90 border-b border-white/10">
+                Welcome back, {user?.name || 'Developer'}!
+              </div>
+              <nav className="py-1 flex flex-col" onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/projects" className="px-3 py-2 rounded hover:bg-white/5" role="menuitem">
+                  Browse Projects
+                </Link>
+                <Link href="/my-applications" className="px-3 py-2 rounded hover:bg-white/5" role="menuitem">
+                  My Applications
+                </Link>
+                <Link href="/profile" className="px-3 py-2 rounded hover:bg-white/5" role="menuitem">
+                  Profile
+                </Link>
+                <Link href="/developer-dashboard" className="px-3 py-2 rounded hover:bg-white/5" role="menuitem">
+                  Dashboard Home
+                </Link>
+              </nav>
+            </div>
+          )}
         </div>
       </header>
 
