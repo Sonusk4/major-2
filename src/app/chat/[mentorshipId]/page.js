@@ -22,9 +22,35 @@ export default function ChatPage() {
   const containerRef = useRef(null);
   const router = useRouter();
 
-  const handleVideoCall = () => {
-  const roomName = `mentorship-${mentorshipId}-${Date.now()}`;
-  router.push(`/video-call/${roomName}`);
+  const handleVideoCall = async () => {
+  // Use a consistent room ID based on mentorship ID
+  const roomId = `mentorship-${mentorshipId}`;
+  
+  try {
+    // Notify the other party about the call
+    const response = await fetch('/api/calls/initiate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mentorshipId,
+        roomId,
+        type: 'video',
+        callerId: currentUserId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to initiate call');
+    }
+
+    // Redirect to the video call page
+    router.push(`/video-call/${roomId}`);
+  } catch (error) {
+    console.error('Error initiating call:', error);
+    alert('Failed to start video call. Please try again.');
+  }
 };
 
   const handleVoiceCall = () => {
