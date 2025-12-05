@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
+import { FaVideo, FaPhone } from 'react-icons/fa';
 
 export default function ChatPage() {
   const routeParams = useParams();
@@ -19,6 +20,17 @@ export default function ChatPage() {
   const [menteeId, setMenteeId] = useState(null);
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
+  const router = useRouter();
+
+  const handleVideoCall = () => {
+  const roomName = `mentorship-${mentorshipId}-${Date.now()}`;
+  router.push(`/video-call/${roomName}`);
+};
+
+  const handleVoiceCall = () => {
+    // Implement voice call functionality
+    router.push(`/voice-call/${mentorshipId}`);
+  };
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -140,9 +152,27 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950">
-      <Navbar />
+      <div className="flex justify-between items-center p-4 bg-white border-b">
+        <Navbar />
+      </div>
       <div className="max-w-3xl mx-auto px-6 py-6">
         <h1 className="text-2xl font-bold text-slate-100 mb-4">Mentorship Chat</h1>
+        <div className="flex justify-end space-x-4 mb-2">
+            <button 
+              onClick={handleVoiceCall}
+              className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
+              title="Voice Call"
+            >
+              <FaPhone /> <span>Voice Call</span>
+            </button>
+            <button 
+              onClick={handleVideoCall}
+              className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
+              title="Video Call"
+            >
+              <FaVideo /> <span>Video Call</span>
+            </button>
+          </div>
         <div ref={containerRef} className="relative h-[60vh] overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
           {loading ? (
             <div className="text-slate-300">Loading...</div>
@@ -220,24 +250,25 @@ export default function ChatPage() {
           )}
           <div ref={bottomRef} />
         </div>
-        <div className="mt-4 flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message"
-            className="flex-1 px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-900/80 text-white placeholder-slate-400"
-          />
-          <button
-            onClick={sendMessage}
-            className="px-4 py-2 rounded-lg font-semibold text-slate-100 bg-gradient-to-r from-indigo-600 to-fuchsia-600"
-          >
-            Send
-          </button>
+        <div className="mt-4">
+          <div className="flex">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Type a message..."
+              className="flex-1 p-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={sendMessage}
+              className="bg-blue-600 text-white px-4 py-2 rounded-r hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-
