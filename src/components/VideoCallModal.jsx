@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import SimplePeer from 'simple-peer';
 import { io } from 'socket.io-client';
 
-export default function VideoCallModal({ mentorshipId, onClose, currentUserId, otherUserId, isInitiator }) {
+export default function VideoCallModal({ mentorshipId, onClose, currentUserId, otherUserId, isInitiator, socket }) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [peer, setPeer] = useState(null);
@@ -15,31 +15,36 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const socketRef = useRef(null);
+  const socketRef = useRef(socket);
   const screenStreamRef = useRef(null);
 
   // Initialize Socket.io connection
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
-      auth: { token },
-      reconnection: true,
-    });
-
-    // Authenticate socket connection
-    socketRef.current.on('connect', () => {
-      socketRef.current.emit('auth', {
-        userId: currentUserId,
-        mentorshipId: mentorshipId,
+    if (!socket) {
+      // Fallback: create Socket.io connection if not provided
+      const token = localStorage.getItem('token');
+      socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
+        auth: { token },
+        reconnection: true,
       });
-    });
+
+      // Authenticate socket connection
+      socketRef.current.on('connect', () => {
+        socketRef.current.emit('auth', {
+          userId: currentUserId,
+          mentorshipId: mentorshipId,
+        });
+      });
+    } else {
+      socketRef.current = socket;
+    }
 
     return () => {
-      if (socketRef.current) {
+      if (socketRef.current && !socket) {
         socketRef.current.disconnect();
       }
     };
-  }, [currentUserId, mentorshipId]);
+  }, [socket, currentUserId, mentorshipId]);
 
   // Initialize local stream and WebRTC peer
   useEffect(() => {
@@ -71,12 +76,16 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
 
         // Handle peer signals
         peerInstance.on('signal', (data) => {
+          console.log('Peer signal generated, emitting to', otherUserId);
           if (socketRef.current) {
             socketRef.current.emit('call:signal', {
               mentorshipId,
               to: otherUserId,
               signal: data,
             });
+            console.log('call:signal emitted');
+          } else {
+            console.log('Socket not connected');
           }
         });
 

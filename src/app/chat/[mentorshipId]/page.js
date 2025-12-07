@@ -67,29 +67,45 @@ export default function ChatPage() {
         }
       });
 
-      // Listen for incoming video call signals
-      socketRef.current.on('call:signal', (data) => {
-        if (data.from && !showVideoCall && !showIncomingCall) {
-          setIncomingCallFrom(data.from);
-          setShowIncomingCall(true);
-        }
-      });
+  // Handle Socket.io listeners for video calls separately
+  useEffect(() => {
+    if (!socketRef.current) return;
 
-      // Listen for call rejection
-      socketRef.current.on('call:rejected', (data) => {
-        if (showVideoCall) {
-          alert('Call rejected');
-          setShowVideoCall(false);
-        }
-      });
+    const handleCallSignal = (data) => {
+      console.log('Received call:signal from', data.from, 'showVideoCall=', showVideoCall, 'showIncomingCall=', showIncomingCall);
+      // Only show incoming call if we're not already in a call
+      if (data.from && !showVideoCall) {
+        console.log('Setting incoming call from', data.from);
+        setIncomingCallFrom(data.from);
+        setShowIncomingCall(true);
+      }
+    };
 
-      // Listen for call end
-      socketRef.current.on('call:ended', (data) => {
-        if (showVideoCall) {
-          setShowVideoCall(false);
-        }
-      });
-    }
+    const handleCallRejected = (data) => {
+      console.log('Call rejected');
+      if (showVideoCall) {
+        alert('Call rejected');
+        setShowVideoCall(false);
+      }
+    };
+
+    const handleCallEnded = (data) => {
+      console.log('Call ended');
+      if (showVideoCall) {
+        setShowVideoCall(false);
+      }
+    };
+
+    socketRef.current.on('call:signal', handleCallSignal);
+    socketRef.current.on('call:rejected', handleCallRejected);
+    socketRef.current.on('call:ended', handleCallEnded);
+
+    return () => {
+      socketRef.current?.off('call:signal', handleCallSignal);
+      socketRef.current?.off('call:rejected', handleCallRejected);
+      socketRef.current?.off('call:ended', handleCallEnded);
+    };
+  }, [showVideoCall]);
 
     let es;
     if (token) {
@@ -321,6 +337,7 @@ export default function ChatPage() {
           otherUserId={otherUserId}
           isInitiator={!showIncomingCall}
           onClose={() => setShowVideoCall(false)}
+          socket={socketRef.current}
         />
       )}
       
