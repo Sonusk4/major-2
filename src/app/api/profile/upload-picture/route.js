@@ -3,8 +3,14 @@ import jwt from 'jsonwebtoken';
 import { dbConnect } from '@/lib/dbConnect';
 import User from '@/models/User';
 import Profile from '@/models/Profile';
-import fs from 'fs';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(request) {
   try {
@@ -42,23 +48,30 @@ export async function POST(request) {
       return NextResponse.json({ message: 'File size must be less than 5MB' }, { status: 400 });
     }
 
-    // Save the image to public/uploads/profile-pictures so it can be served statically
+    // Upload to Cloudinary
     const fileArrayBuffer = await file.arrayBuffer();
     const fileBuffer = Buffer.from(fileArrayBuffer);
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profile-pictures');
-    fs.mkdirSync(uploadDir, { recursive: true });
+    const uploadResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'career-hub/profile-pictures',
+          public_id: `profile-${user._id}-${Date.now()}`,
+          resource_type: 'auto',
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
 
-    const extensionFromName = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
-    const safeExtension = (extensionFromName || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const fileName = `profile-${user._id}-${Date.now()}.${safeExtension}`;
-    const filePath = path.join(uploadDir, fileName);
-    await fs.promises.writeFile(filePath, fileBuffer);
+      uploadStream.end(fileBuffer);
+    });
 
-    const fileUrl = `/uploads/profile-pictures/${fileName}`;
+    const fileUrl = uploadResult.secure_url;
 
-    // Update profile with new picture URL
-    await Profile.findOneAndUpdate(
+    // Update profile with new picture URL from Cloudinary
+    const updatedProfile = await Profile.findOneAndUpdate(
       { user: user._id },
       { profilePicture: fileUrl },
       { upsert: true, new: true }
@@ -74,6 +87,6 @@ export async function POST(request) {
     if (error.name === 'JsonWebTokenError') {
       return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
     }
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ message: 'Internal server error', error: error.message }, { status: 500 });
   }
 }
