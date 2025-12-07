@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import VideoCallModal from '@/components/VideoCallModal';
+import IncomingCallModal from '@/components/IncomingCallModal';
+import { io } from 'socket.io-client';
 
 export default function ChatPage() {
   const routeParams = useParams();
@@ -20,8 +22,11 @@ export default function ChatPage() {
   const [menteeId, setMenteeId] = useState(null);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [otherUserId, setOtherUserId] = useState(null);
+  const [showIncomingCall, setShowIncomingCall] = useState(false);
+  const [incomingCallFrom, setIncomingCallFrom] = useState(null);
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
+  const socketRef = useRef(null);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,8 +49,49 @@ export default function ChatPage() {
       setLoading(false);
       scrollToBottom();
     })();
-    let es;
+    
+    // Initialize Socket.io for incoming calls
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
+        auth: { token },
+        reconnection: true,
+      });
+
+      socketRef.current.on('connect', () => {
+        if (currentUserId && mentorshipId) {
+          socketRef.current.emit('auth', {
+            userId: currentUserId,
+            mentorshipId: mentorshipId,
+          });
+        }
+      });
+
+      // Listen for incoming video call signals
+      socketRef.current.on('call:signal', (data) => {
+        if (data.from && !showVideoCall && !showIncomingCall) {
+          setIncomingCallFrom(data.from);
+          setShowIncomingCall(true);
+        }
+      });
+
+      // Listen for call rejection
+      socketRef.current.on('call:rejected', (data) => {
+        if (showVideoCall) {
+          alert('Call rejected');
+          setShowVideoCall(false);
+        }
+      });
+
+      // Listen for call end
+      socketRef.current.on('call:ended', (data) => {
+        if (showVideoCall) {
+          setShowVideoCall(false);
+        }
+      });
+    }
+
+    let es;
     if (token) {
       // fetch mentorship participants for accurate roles
       fetch(`/api/mentorship/${mentorshipId}`, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -71,8 +117,11 @@ export default function ChatPage() {
         // ignore transient errors
       };
     }
-    return () => { try { es && es.close(); } catch (_) {} };
-  }, [mentorshipId]);
+    return () => { 
+      try { es && es.close(); } catch (_) {} 
+      try { socketRef.current && socketRef.current.disconnect(); } catch (_) {}
+    };
+  }, [mentorshipId, currentUserId]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -114,6 +163,16 @@ export default function ChatPage() {
     if (res.ok) {
       // SSE will update the list
     }
+  };
+
+  const handleAcceptIncomingCall = () => {
+    setShowIncomingCall(false);
+    setShowVideoCall(true);
+  };
+
+  const handleRejectIncomingCall = () => {
+    setShowIncomingCall(false);
+    setIncomingCallFrom(null);
   };
 
   // decode JWT to get current user id for sender checks
@@ -260,8 +319,18 @@ export default function ChatPage() {
           mentorshipId={mentorshipId}
           currentUserId={currentUserId}
           otherUserId={otherUserId}
-          isInitiator={true}
+          isInitiator={!showIncomingCall}
           onClose={() => setShowVideoCall(false)}
+        />
+      )}
+      
+      {showIncomingCall && incomingCallFrom && (
+        <IncomingCallModal
+          mentorshipId={mentorshipId}
+          from={incomingCallFrom}
+          onAccept={handleAcceptIncomingCall}
+          onReject={handleRejectIncomingCall}
+          socket={socketRef.current}
         />
       )}
     </div>

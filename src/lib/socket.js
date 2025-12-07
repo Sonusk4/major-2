@@ -46,22 +46,12 @@ export function initializeSocket(httpServer) {
       const { mentorshipId, to, signal } = data;
       
       if (mentorshipId && to) {
-        // Broadcast to all users in the mentorship room
+        // Broadcast to all users in the mentorship room with sender info
         io.to(`mentorship:${mentorshipId}`).emit('call:signal', {
           from: socket.id,
           signal,
           mentorshipId,
         });
-
-        // Alternatively, send to specific user if we have their connection
-        const targetConn = userConnections.get(to);
-        if (targetConn) {
-          targetConn.socket.emit('call:signal', {
-            from: socket.id,
-            signal,
-            mentorshipId,
-          });
-        }
       }
     });
 
