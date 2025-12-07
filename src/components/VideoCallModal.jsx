@@ -312,9 +312,11 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
 
         {/* Signal Exchange */}
         <div className="bg-neutral-900 p-4 border-t border-neutral-700">
-          {isInitiator && signalData && (
+          {signalData && (
             <div className="mb-4">
-              <label className="text-xs text-gray-400 block mb-2">Send this signal to the other person:</label>
+              <label className="text-xs text-gray-400 block mb-2">
+                {isInitiator ? 'Send this signal to the other person:' : 'Your signal to send back:'}
+              </label>
               <textarea
                 readOnly
                 value={signalData}
@@ -327,14 +329,16 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
                 }}
                 className="mt-2 w-full px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
               >
-                Copy Signal
+                Copy {isInitiator ? 'My' : 'Your'} Signal
               </button>
             </div>
           )}
 
-          {!isInitiator && (
+          {callStatus !== 'connected' && (
             <div>
-              <label className="text-xs text-gray-400 block mb-2">Paste the signal from the caller:</label>
+              <label className="text-xs text-gray-400 block mb-2">
+                {isInitiator ? 'Paste the answer signal from the receiver:' : 'Paste the offer signal from the caller:'}
+              </label>
               <textarea
                 value={remoteSignalData}
                 onChange={handleSignalInputChange}
