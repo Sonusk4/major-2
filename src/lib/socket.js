@@ -46,16 +46,16 @@ export function initializeSocket(httpServer) {
     // Handle WebRTC signaling for video calls
     socket.on('call:signal', (data) => {
       const { mentorshipId, to, signal } = data;
-      console.log(`Received call:signal from ${socket.id} in mentorship ${mentorshipId}, broadcasting to room`);
+      console.log(`Received call:signal from ${socket.id} to ${to} in mentorship ${mentorshipId}`);
       
-      if (mentorshipId && to) {
-        // Broadcast to all users in the mentorship room with sender info
+      if (mentorshipId) {
+        // Broadcast to all users in the mentorship room (both sender and receiver need signals)
         io.to(`mentorship:${mentorshipId}`).emit('call:signal', {
           from: socket.id,
           signal,
           mentorshipId,
         });
-        console.log(`Emitted call:signal to mentorship:${mentorshipId}`);
+        console.log(`Emitted call:signal to mentorship:${mentorshipId} room`);
       }
     });
 

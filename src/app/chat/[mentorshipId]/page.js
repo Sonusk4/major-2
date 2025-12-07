@@ -52,19 +52,23 @@ export default function ChatPage() {
     
     // Initialize Socket.io for incoming calls
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) {
+    if (token && currentUserId && mentorshipId) {
+      console.log('Initializing Socket.io with userId:', currentUserId, 'mentorshipId:', mentorshipId);
       socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
         auth: { token },
         reconnection: true,
       });
 
       socketRef.current.on('connect', () => {
-        if (currentUserId && mentorshipId) {
-          socketRef.current.emit('auth', {
-            userId: currentUserId,
-            mentorshipId: mentorshipId,
-          });
-        }
+        console.log('Socket connected, authenticating...');
+        socketRef.current.emit('auth', {
+          userId: currentUserId,
+          mentorshipId: mentorshipId,
+        });
+      });
+
+      socketRef.current.on('disconnect', () => {
+        console.log('Socket disconnected');
       });
     }
 
@@ -102,13 +106,17 @@ export default function ChatPage() {
 
   // Handle Socket.io listeners for video calls separately
   useEffect(() => {
-    if (!socketRef.current) return;
+    if (!socketRef.current) {
+      console.log('Socket not initialized yet');
+      return;
+    }
+
+    console.log('Setting up Socket.io listeners for call:signal');
 
     const handleCallSignal = (data) => {
-      console.log('Received call:signal from', data.from, 'showVideoCall=', showVideoCall, 'showIncomingCall=', showIncomingCall);
-      // Only show incoming call if we're not already in a call
-      if (data.from && !showVideoCall) {
-        console.log('Setting incoming call from', data.from);
+      console.log('Received call:signal from', data.from);
+      if (data.from) {
+        console.log('Showing incoming call modal');
         setIncomingCallFrom(data.from);
         setShowIncomingCall(true);
       }
@@ -116,17 +124,12 @@ export default function ChatPage() {
 
     const handleCallRejected = (data) => {
       console.log('Call rejected');
-      if (showVideoCall) {
-        alert('Call rejected');
-        setShowVideoCall(false);
-      }
+      setShowVideoCall(false);
     };
 
     const handleCallEnded = (data) => {
       console.log('Call ended');
-      if (showVideoCall) {
-        setShowVideoCall(false);
-      }
+      setShowVideoCall(false);
     };
 
     socketRef.current.on('call:signal', handleCallSignal);
@@ -134,11 +137,12 @@ export default function ChatPage() {
     socketRef.current.on('call:ended', handleCallEnded);
 
     return () => {
+      console.log('Cleaning up Socket.io listeners');
       socketRef.current?.off('call:signal', handleCallSignal);
       socketRef.current?.off('call:rejected', handleCallRejected);
       socketRef.current?.off('call:ended', handleCallEnded);
     };
-  }, [showVideoCall]);
+  }, []);
 
   const sendMessage = async () => {
     const text = input.trim();
