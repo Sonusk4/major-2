@@ -66,6 +66,39 @@ export default function ChatPage() {
           });
         }
       });
+    }
+
+    let es;
+    if (token) {
+      // fetch mentorship participants for accurate roles
+      fetch(`/api/mentorship/${mentorshipId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => { setMentorId(d?.mentorship?.mentor || null); setMenteeId(d?.mentorship?.mentee || null); })
+        .catch(() => {});
+      const url = `/api/chat/${mentorshipId}/stream?token=${encodeURIComponent(token)}`;
+      es = new EventSource(url, { withCredentials: false });
+      es.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload?.type === 'message') {
+            setMessages(prev => [...prev, { ...payload.item, sender: String(payload.item.sender) }]);
+            scrollToBottom();
+          } else if (payload?.type === 'message:update') {
+            setMessages(prev => prev.map(m => m._id === payload.item._id ? { ...m, text: payload.item.text, editedAt: payload.item.editedAt } : m));
+          } else if (payload?.type === 'message:delete') {
+            setMessages(prev => prev.map(m => m._id === payload.item._id ? { ...m, text: 'Message deleted', deletedAt: payload.item.deletedAt } : m));
+          }
+        } catch (_) {}
+      };
+      es.onerror = () => {
+        // ignore transient errors
+      };
+    }
+    return () => { 
+      try { es && es.close(); } catch (_) {} 
+      try { socketRef.current && socketRef.current.disconnect(); } catch (_) {}
+    };
+  }, [mentorshipId, currentUserId]);
 
   // Handle Socket.io listeners for video calls separately
   useEffect(() => {
@@ -106,38 +139,6 @@ export default function ChatPage() {
       socketRef.current?.off('call:ended', handleCallEnded);
     };
   }, [showVideoCall]);
-
-    let es;
-    if (token) {
-      // fetch mentorship participants for accurate roles
-      fetch(`/api/mentorship/${mentorshipId}`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(d => { setMentorId(d?.mentorship?.mentor || null); setMenteeId(d?.mentorship?.mentee || null); })
-        .catch(() => {});
-      const url = `/api/chat/${mentorshipId}/stream?token=${encodeURIComponent(token)}`;
-      es = new EventSource(url, { withCredentials: false });
-      es.onmessage = (e) => {
-        try {
-          const payload = JSON.parse(e.data);
-          if (payload?.type === 'message') {
-            setMessages(prev => [...prev, { ...payload.item, sender: String(payload.item.sender) }]);
-            scrollToBottom();
-          } else if (payload?.type === 'message:update') {
-            setMessages(prev => prev.map(m => m._id === payload.item._id ? { ...m, text: payload.item.text, editedAt: payload.item.editedAt } : m));
-          } else if (payload?.type === 'message:delete') {
-            setMessages(prev => prev.map(m => m._id === payload.item._id ? { ...m, text: 'Message deleted', deletedAt: payload.item.deletedAt } : m));
-          }
-        } catch (_) {}
-      };
-      es.onerror = () => {
-        // ignore transient errors
-      };
-    }
-    return () => { 
-      try { es && es.close(); } catch (_) {} 
-      try { socketRef.current && socketRef.current.disconnect(); } catch (_) {}
-    };
-  }, [mentorshipId, currentUserId]);
 
   const sendMessage = async () => {
     const text = input.trim();
