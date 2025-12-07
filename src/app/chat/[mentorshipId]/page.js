@@ -42,6 +42,40 @@ export default function ChatPage() {
       setMessages(list.map(m => ({ ...m, sender: String(m.sender) })));
     }
   };
+  // Initialize Socket.io immediately on page load
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token || !mentorshipId) return;
+
+    console.log('Initializing Socket.io for mentorshipId:', mentorshipId);
+    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
+      auth: { token },
+      reconnection: true,
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('Socket connected:', socketRef.current.id);
+    });
+
+    socketRef.current.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+
+    return () => {
+      try { socketRef.current && socketRef.current.disconnect(); } catch (_) {}
+    };
+  }, [mentorshipId]);
+
+  // Authenticate socket after currentUserId is available
+  useEffect(() => {
+    if (!socketRef.current || !currentUserId || !mentorshipId) return;
+
+    console.log('Authenticating socket with userId:', currentUserId, 'mentorshipId:', mentorshipId);
+    socketRef.current.emit('auth', {
+      userId: currentUserId,
+      mentorshipId: mentorshipId,
+    });
+  }, [currentUserId, mentorshipId]);
 
   useEffect(() => {
     (async () => {
@@ -50,29 +84,8 @@ export default function ChatPage() {
       scrollToBottom();
     })();
     
-    // Initialize Socket.io for incoming calls
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token && currentUserId && mentorshipId) {
-      console.log('Initializing Socket.io with userId:', currentUserId, 'mentorshipId:', mentorshipId);
-      socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
-        auth: { token },
-        reconnection: true,
-      });
-
-      socketRef.current.on('connect', () => {
-        console.log('Socket connected, authenticating...');
-        socketRef.current.emit('auth', {
-          userId: currentUserId,
-          mentorshipId: mentorshipId,
-        });
-      });
-
-      socketRef.current.on('disconnect', () => {
-        console.log('Socket disconnected');
-      });
-    }
-
     let es;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (token) {
       // fetch mentorship participants for accurate roles
       fetch(`/api/mentorship/${mentorshipId}`, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -100,9 +113,8 @@ export default function ChatPage() {
     }
     return () => { 
       try { es && es.close(); } catch (_) {} 
-      try { socketRef.current && socketRef.current.disconnect(); } catch (_) {}
     };
-  }, [mentorshipId, currentUserId]);
+  }, [mentorshipId]);
 
   // Handle Socket.io listeners for video calls separately
   useEffect(() => {
