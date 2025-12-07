@@ -8,11 +8,25 @@ export async function POST(req) {
       return Response.json({ error: 'Missing userId or roomId' }, { status: 400 });
     }
 
-    const appID = parseInt(process.env.NEXT_PUBLIC_ZEGO_APP_ID);
+    // Get environment variables
+    const appIDStr = process.env.NEXT_PUBLIC_ZEGO_APP_ID;
     const secret = process.env.ZEGO_SERVER_SECRET;
 
-    if (!appID || !secret) {
-      return Response.json({ error: 'Missing ZEGOCLOUD configuration' }, { status: 500 });
+    console.log('Token generation - AppID env:', appIDStr ? 'set' : 'NOT SET');
+    console.log('Token generation - Secret env:', secret ? 'set' : 'NOT SET');
+
+    if (!appIDStr || !secret) {
+      console.error('Missing env vars - AppID:', appIDStr, 'Secret:', secret);
+      return Response.json({ 
+        error: 'Missing ZEGOCLOUD configuration',
+        debug: { appIDSet: !!appIDStr, secretSet: !!secret }
+      }, { status: 500 });
+    }
+
+    const appID = parseInt(appIDStr);
+
+    if (isNaN(appID)) {
+      return Response.json({ error: 'Invalid ZEGO_APP_ID format' }, { status: 500 });
     }
 
     // Token expiry: 1 hour from now
@@ -29,8 +43,12 @@ export async function POST(req) {
       room_id: roomId,
     };
 
+    console.log('Generating token with payload:', { app_id: payload.app_id, user_id: payload.user_id, room_id: payload.room_id });
+
     // Generate the token using HS256
     const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
+
+    console.log('Token generated successfully');
 
     return Response.json({ token, expireTime: expiryTime }, { status: 200 });
   } catch (error) {
