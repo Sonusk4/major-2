@@ -1,10 +1,12 @@
 // src/app/api/calls/initiate/route.js
 import { ObjectId } from 'mongodb';
-import { pusherServer } from '../../../../lib/pusher';
-import connectMongoDB from '../../../../lib/mongodb';
+import { dbConnect } from '@/lib/dbConnect';
+import Mentorship from '@/models/Mentorship';
 
 export async function POST(request) {
   try {
+    await dbConnect();
+    
     const { mentorshipId, roomId, type, callerId } = await request.json();
     
     // Input validation
@@ -16,14 +18,8 @@ export async function POST(request) {
     }
 
     try {
-      // Connect to the database
-      const client = await connectMongoDB();
-      const db = client.db();
-      
       // Get the mentorship details
-      const mentorship = await db.collection('mentorships').findOne({
-        _id: new ObjectId(mentorshipId)
-      });
+      const mentorship = await Mentorship.findById(mentorshipId);
 
       if (!mentorship) {
         return new Response(
@@ -33,26 +29,9 @@ export async function POST(request) {
       }
 
       // Determine who is the other user (the one being called)
-      const calleeId = String(mentorship.mentorId) === callerId 
-        ? mentorship.menteeId 
-        : mentorship.mentorId;
-
-      // Trigger Pusher event to notify the callee
-      try {
-        const channel = `user-${calleeId}`;
-        const payload = {
-          mentorshipId,
-          roomId,
-          type,
-          callerId,
-          timestamp: Date.now()
-        };
-
-        await pusherServer.trigger(channel, 'incoming-call', payload);
-      } catch (pusherError) {
-        console.error('Pusher error:', pusherError);
-        // Continue even if Pusher fails
-      }
+      const calleeId = String(mentorship.mentor) === callerId 
+        ? mentorship.mentee 
+        : mentorship.mentor;
 
       // Return success response with room details
       return new Response(
