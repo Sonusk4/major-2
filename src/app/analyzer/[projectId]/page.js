@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import jsPDF from 'jspdf';
 
 export default function AnalyzerPage() {
@@ -12,7 +12,9 @@ export default function AnalyzerPage() {
   const [downloading, setDownloading] = useState(false);
   
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params?.projectId;
+  const developerId = searchParams?.get('developerId');
 
   useEffect(() => {
     const runAnalysis = async () => {
@@ -30,7 +32,12 @@ export default function AnalyzerPage() {
       }
 
       try {
-        const res = await fetch(`/api/ai/analyze/${projectId}`, {
+        // If developerId is provided, analyze the developer's resume; otherwise analyze the project
+        const endpoint = developerId 
+          ? `/api/ai/analyze-user/${projectId}/${developerId}`
+          : `/api/ai/analyze/${projectId}`;
+        
+        const res = await fetch(endpoint, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -52,7 +59,7 @@ export default function AnalyzerPage() {
     if (projectId) {
         runAnalysis();
     }
-  }, [projectId]);
+  }, [projectId, developerId]);
   
   if (loading) {
     return (

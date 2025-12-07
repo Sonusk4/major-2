@@ -247,6 +247,14 @@ export default function ApplicationsPage() {
                     >
                       👤 View Profile
                     </Link>
+                    {userRole === 'cofounder' && application.profile.hasResume && (
+                      <Link
+                        href={`/analyzer/${projectId}?developerId=${application.developer.id}`}
+                        className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium text-center"
+                      >
+                        📋 Analyze Resume
+                      </Link>
+                    )}
                     {userRole === 'cofounder' && application.status === 'pending' && (
                       <>
                         <button
