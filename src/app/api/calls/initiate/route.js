@@ -1,5 +1,4 @@
 // src/app/api/calls/initiate/route.js
-import { ObjectId } from 'mongodb';
 import { dbConnect } from '@/lib/dbConnect';
 import Mentorship from '@/models/Mentorship';
 
