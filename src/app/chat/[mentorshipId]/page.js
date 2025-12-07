@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import ZegoVideoCall from '@/components/ZegoVideoCall';
 
 export default function ChatPage() {
   const routeParams = useParams();
@@ -18,10 +17,6 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [mentorId, setMentorId] = useState(null);
   const [menteeId, setMenteeId] = useState(null);
-  const [showVideoCall, setShowVideoCall] = useState(false);
-  const [otherUserId, setOtherUserId] = useState(null);
-  const [callInitiator, setCallInitiator] = useState(null);
-  const [callSDP, setCallSDP] = useState(null);
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -39,15 +34,13 @@ export default function ChatPage() {
       setMessages(list.map(m => ({ ...m, sender: String(m.sender) })));
     }
   };
-  
-  // Initialize and load messages on mount
+
   useEffect(() => {
     (async () => {
       await loadMessages();
       setLoading(false);
       scrollToBottom();
     })();
-    
     let es;
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (token) {
@@ -75,9 +68,7 @@ export default function ChatPage() {
         // ignore transient errors
       };
     }
-    return () => { 
-      try { es && es.close(); } catch (_) {} 
-    };
+    return () => { try { es && es.close(); } catch (_) {} };
   }, [mentorshipId]);
 
   const sendMessage = async () => {
@@ -122,36 +113,6 @@ export default function ChatPage() {
     }
   };
 
-  const initiateVideoCall = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    
-    // Send a special video call request message
-    const res = await fetch(`/api/chat/${mentorshipId}`, { 
-      method: 'POST', 
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json' 
-      }, 
-      body: JSON.stringify({ 
-        text: '📞 VIDEO_CALL_REQUEST',
-        type: 'video_call'
-      }) 
-    });
-    
-    if (res.ok) {
-      setShowVideoCall(true);
-      setCallInitiator(currentUserId);
-      console.log('Video call initiated, waiting for acceptance...');
-    }
-  };
-
-  const acceptVideoCall = (initiatorId) => {
-    setShowVideoCall(true);
-    setCallInitiator(initiatorId);
-    setCallSDP(null);
-  };
-
   // decode JWT to get current user id for sender checks
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -164,14 +125,6 @@ export default function ChatPage() {
       }
     } catch (_) {}
   }, []);
-
-  // determine other user for video call
-  useEffect(() => {
-    if (currentUserId && mentorId && menteeId) {
-      const other = String(currentUserId) === String(mentorId) ? String(menteeId) : String(mentorId);
-      setOtherUserId(other);
-    }
-  }, [currentUserId, mentorId, menteeId]);
 
   // close context menu on outside click
   useEffect(() => {
@@ -230,21 +183,7 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       <div>
-                        {m.text === '📞 VIDEO_CALL_REQUEST' ? (
-                          <div className="flex items-center gap-3">
-                            <span>Incoming video call...</span>
-                            {!isMine && (
-                              <button
-                                onClick={() => acceptVideoCall(m.sender)}
-                                className="px-3 py-1 rounded bg-green-600 text-white text-sm hover:bg-green-700"
-                              >
-                                Accept
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="whitespace-pre-wrap break-words">{m.text}</div>
-                        )}
+                        <div className="whitespace-pre-wrap break-words">{m.text}</div>
                         <div className={`mt-1 text-[10px] opacity-80 flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
                           <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           {m.editedAt && <span className="italic">edited</span>}
@@ -295,24 +234,10 @@ export default function ChatPage() {
           >
             Send
           </button>
-          <button
-            onClick={initiateVideoCall}
-            className="px-4 py-2 rounded-lg font-semibold text-slate-100 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 transition-all"
-            title="Start Video Call"
-          >
-            📞 Video Call
-          </button>
         </div>
       </div>
-      
-      {showVideoCall && currentUserId && otherUserId && callInitiator && (
-        <ZegoVideoCall
-          mentorshipId={mentorshipId}
-          currentUserId={currentUserId}
-          otherUserId={otherUserId}
-          onClose={() => setShowVideoCall(false)}
-        />
-      )}
     </div>
   );
 }
+
+
