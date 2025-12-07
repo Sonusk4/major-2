@@ -30,6 +30,7 @@ export function initializeSocket(httpServer) {
     socket.on('auth', (data) => {
       const { userId, mentorshipId } = data;
       if (userId && mentorshipId) {
+        console.log(`User ${userId} authenticated for mentorship ${mentorshipId}`);
         if (!userConnections.has(userId)) {
           userConnections.set(userId, { socket, mentorships: new Set() });
         }
@@ -38,12 +39,14 @@ export function initializeSocket(httpServer) {
 
         // Join a room for this mentorship for easy broadcasting
         socket.join(`mentorship:${mentorshipId}`);
+        console.log(`Socket ${socket.id} joined room mentorship:${mentorshipId}`);
       }
     });
 
     // Handle WebRTC signaling for video calls
     socket.on('call:signal', (data) => {
       const { mentorshipId, to, signal } = data;
+      console.log(`Received call:signal from ${socket.id} in mentorship ${mentorshipId}, broadcasting to room`);
       
       if (mentorshipId && to) {
         // Broadcast to all users in the mentorship room with sender info
@@ -52,6 +55,7 @@ export function initializeSocket(httpServer) {
           signal,
           mentorshipId,
         });
+        console.log(`Emitted call:signal to mentorship:${mentorshipId}`);
       }
     });
 
