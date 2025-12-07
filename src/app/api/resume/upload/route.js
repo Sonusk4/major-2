@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import Profile from '@/models/Profile';
 import jwt from 'jsonwebtoken';
+import pdfParse from 'pdf-parse';
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
@@ -49,8 +50,22 @@ export async function POST(request) {
     const fileBuffer = await file.arrayBuffer();
     console.log('File buffer size:', fileBuffer.length);
     
-    // Placeholder text indicating PDF was uploaded
+    // Parse PDF to extract text
     let parsedText = `PDF Resume uploaded successfully. Please use the Resume Analyzer to paste your resume content for analysis, or manually enter your information in your profile.`;
+    
+    try {
+      const pdfData = await pdfParse(Buffer.from(fileBuffer));
+      if (pdfData.text && pdfData.text.trim().length > 0) {
+        parsedText = pdfData.text;
+        console.log('PDF parsed successfully, text length:', parsedText.length);
+      } else {
+        console.log('PDF parsed but no text content found');
+      }
+    } catch (parseError) {
+      console.error('PDF parsing error (non-critical):', parseError.message);
+      // Continue with placeholder text if parsing fails
+      parsedText = `Resume PDF uploaded. Content: [PDF parsing failed - please review the uploaded file manually in the Resume Analyzer]`;
+    }
 
     // Upload PDF to Cloudinary with fallback
     let uploadResult;
