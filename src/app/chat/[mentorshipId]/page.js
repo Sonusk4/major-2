@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import VideoCallModal from '@/components/VideoCallModal';
-import IncomingCallModal from '@/components/IncomingCallModal';
-import { io } from 'socket.io-client';
 
 export default function ChatPage() {
   const routeParams = useParams();
@@ -22,11 +20,10 @@ export default function ChatPage() {
   const [menteeId, setMenteeId] = useState(null);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [otherUserId, setOtherUserId] = useState(null);
-  const [showIncomingCall, setShowIncomingCall] = useState(false);
-  const [incomingCallFrom, setIncomingCallFrom] = useState(null);
+  const [callInitiator, setCallInitiator] = useState(null);
+  const [callSDP, setCallSDP] = useState(null);
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
-  const socketRef = useRef(null);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,42 +39,13 @@ export default function ChatPage() {
       setMessages(list.map(m => ({ ...m, sender: String(m.sender) })));
     }
   };
+  
   // Initialize Socket.io immediately on page load
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token || !mentorshipId) return;
 
-    console.log('Initializing Socket.io for mentorshipId:', mentorshipId);
-    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || window.location.origin, {
-      auth: { token },
-      reconnection: true,
-    });
-
-    socketRef.current.on('connect', () => {
-      console.log('Socket connected:', socketRef.current.id);
-    });
-
-    socketRef.current.on('disconnect', () => {
-      console.log('Socket disconnected');
-    });
-
-    return () => {
-      try { socketRef.current && socketRef.current.disconnect(); } catch (_) {}
-    };
-  }, [mentorshipId]);
-
-  // Authenticate socket after currentUserId is available
-  useEffect(() => {
-    if (!socketRef.current || !currentUserId || !mentorshipId) return;
-
-    console.log('Authenticating socket with userId:', currentUserId, 'mentorshipId:', mentorshipId);
-    socketRef.current.emit('auth', {
-      userId: currentUserId,
-      mentorshipId: mentorshipId,
-    });
-  }, [currentUserId, mentorshipId]);
-
-  useEffect(() => {
+    console.log('Chat opened for mentorshipId:', mentorshipId);  useEffect(() => {
     (async () => {
       await loadMessages();
       setLoading(false);
@@ -115,46 +83,6 @@ export default function ChatPage() {
       try { es && es.close(); } catch (_) {} 
     };
   }, [mentorshipId]);
-
-  // Handle Socket.io listeners for video calls separately
-  useEffect(() => {
-    if (!socketRef.current) {
-      console.log('Socket not initialized yet');
-      return;
-    }
-
-    console.log('Setting up Socket.io listeners for call:signal');
-
-    const handleCallSignal = (data) => {
-      console.log('Received call:signal from', data.from);
-      if (data.from) {
-        console.log('Showing incoming call modal');
-        setIncomingCallFrom(data.from);
-        setShowIncomingCall(true);
-      }
-    };
-
-    const handleCallRejected = (data) => {
-      console.log('Call rejected');
-      setShowVideoCall(false);
-    };
-
-    const handleCallEnded = (data) => {
-      console.log('Call ended');
-      setShowVideoCall(false);
-    };
-
-    socketRef.current.on('call:signal', handleCallSignal);
-    socketRef.current.on('call:rejected', handleCallRejected);
-    socketRef.current.on('call:ended', handleCallEnded);
-
-    return () => {
-      console.log('Cleaning up Socket.io listeners');
-      socketRef.current?.off('call:signal', handleCallSignal);
-      socketRef.current?.off('call:rejected', handleCallRejected);
-      socketRef.current?.off('call:ended', handleCallEnded);
-    };
-  }, []);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -198,14 +126,34 @@ export default function ChatPage() {
     }
   };
 
-  const handleAcceptIncomingCall = () => {
-    setShowIncomingCall(false);
-    setShowVideoCall(true);
+  const initiateVideoCall = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // Send a special video call request message
+    const res = await fetch(`/api/chat/${mentorshipId}`, { 
+      method: 'POST', 
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
+      }, 
+      body: JSON.stringify({ 
+        text: '📞 VIDEO_CALL_REQUEST',
+        type: 'video_call'
+      }) 
+    });
+    
+    if (res.ok) {
+      setShowVideoCall(true);
+      setCallInitiator(currentUserId);
+      console.log('Video call initiated, waiting for acceptance...');
+    }
   };
 
-  const handleRejectIncomingCall = () => {
-    setShowIncomingCall(false);
-    setIncomingCallFrom(null);
+  const acceptVideoCall = (initiatorId) => {
+    setShowVideoCall(true);
+    setCallInitiator(initiatorId);
+    setCallSDP(null);
   };
 
   // decode JWT to get current user id for sender checks
@@ -286,7 +234,21 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       <div>
-                        <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                        {m.text === '📞 VIDEO_CALL_REQUEST' ? (
+                          <div className="flex items-center gap-3">
+                            <span>Incoming video call...</span>
+                            {!isMine && (
+                              <button
+                                onClick={() => acceptVideoCall(m.sender)}
+                                className="px-3 py-1 rounded bg-green-600 text-white text-sm hover:bg-green-700"
+                              >
+                                Accept
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                        )}
                         <div className={`mt-1 text-[10px] opacity-80 flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
                           <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           {m.editedAt && <span className="italic">edited</span>}
@@ -338,7 +300,7 @@ export default function ChatPage() {
             Send
           </button>
           <button
-            onClick={() => setShowVideoCall(true)}
+            onClick={initiateVideoCall}
             className="px-4 py-2 rounded-lg font-semibold text-slate-100 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 transition-all"
             title="Start Video Call"
           >
@@ -347,24 +309,13 @@ export default function ChatPage() {
         </div>
       </div>
       
-      {showVideoCall && currentUserId && otherUserId && (
+      {showVideoCall && currentUserId && otherUserId && callInitiator && (
         <VideoCallModal
           mentorshipId={mentorshipId}
           currentUserId={currentUserId}
           otherUserId={otherUserId}
-          isInitiator={!showIncomingCall}
+          isInitiator={callInitiator === currentUserId}
           onClose={() => setShowVideoCall(false)}
-          socket={socketRef.current}
-        />
-      )}
-      
-      {showIncomingCall && incomingCallFrom && (
-        <IncomingCallModal
-          mentorshipId={mentorshipId}
-          from={incomingCallFrom}
-          onAccept={handleAcceptIncomingCall}
-          onReject={handleRejectIncomingCall}
-          socket={socketRef.current}
         />
       )}
     </div>
