@@ -26,12 +26,20 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
       reconnection: true,
     });
 
+    // Authenticate socket connection
+    socketRef.current.on('connect', () => {
+      socketRef.current.emit('auth', {
+        userId: currentUserId,
+        mentorshipId: mentorshipId,
+      });
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
-  }, []);
+  }, [currentUserId, mentorshipId]);
 
   // Initialize local stream and WebRTC peer
   useEffect(() => {
