@@ -29,17 +29,11 @@ export async function GET(request) {
       return NextResponse.json({ message: 'No resume found' }, { status: 404 });
     }
 
-    // Add Cloudinary download parameters to force PDF download
-    // fl_attachment adds Content-Disposition header to trigger download
-    const downloadUrl = profile.resumePDF.replace(
-      '/upload/',
-      '/upload/fl_attachment/'
-    );
-
-    // Return the Cloudinary URL with download parameters
+    // Return the Cloudinary URL directly without modification
+    // The browser will handle the PDF display/download
     return NextResponse.json({
       success: true,
-      pdfUrl: downloadUrl,
+      pdfUrl: profile.resumePDF,
       message: 'Resume PDF URL retrieved successfully'
     }, { status: 200 });
 
