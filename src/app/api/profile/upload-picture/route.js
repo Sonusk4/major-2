@@ -52,6 +52,18 @@ export async function POST(request) {
     const fileArrayBuffer = await file.arrayBuffer();
     const fileBuffer = Buffer.from(fileArrayBuffer);
 
+    // Verify Cloudinary is configured
+    if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return NextResponse.json({ 
+        message: 'Cloudinary not properly configured',
+        debug: {
+          cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+          apiKey: process.env.CLOUDINARY_API_KEY ? 'present' : 'missing',
+          apiSecret: process.env.CLOUDINARY_API_SECRET ? 'present' : 'missing'
+        }
+      }, { status: 500 });
+    }
+
     const uploadResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
@@ -60,10 +72,21 @@ export async function POST(request) {
           resource_type: 'auto',
         },
         (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
+          if (error) {
+            console.error('Cloudinary upload stream error:', {
+              message: error.message,
+              http_code: error.http_code,
+              status: error.status
+            });
+            reject(error);
+          } else resolve(result);
         }
       );
+
+      uploadStream.on('error', (error) => {
+        console.error('Cloudinary stream error event:', error);
+        reject(error);
+      });
 
       uploadStream.end(fileBuffer);
     });
