@@ -40,12 +40,8 @@ export default function ChatPage() {
     }
   };
   
-  // Initialize Socket.io immediately on page load
+  // Initialize and load messages on mount
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token || !mentorshipId) return;
-
-    console.log('Chat opened for mentorshipId:', mentorshipId);  useEffect(() => {
     (async () => {
       await loadMessages();
       setLoading(false);
@@ -319,7 +315,5 @@ export default function ChatPage() {
         />
       )}
     </div>
-);
+  );
 }
-
-
