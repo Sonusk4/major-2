@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
+import VideoCallModal from '@/components/VideoCallModal';
 
 export default function ChatPage() {
   const routeParams = useParams();
@@ -17,6 +18,8 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [mentorId, setMentorId] = useState(null);
   const [menteeId, setMenteeId] = useState(null);
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [otherUserId, setOtherUserId] = useState(null);
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -126,6 +129,14 @@ export default function ChatPage() {
     } catch (_) {}
   }, []);
 
+  // determine other user for video call
+  useEffect(() => {
+    if (currentUserId && mentorId && menteeId) {
+      const other = String(currentUserId) === String(mentorId) ? String(menteeId) : String(mentorId);
+      setOtherUserId(other);
+    }
+  }, [currentUserId, mentorId, menteeId]);
+
   // close context menu on outside click
   useEffect(() => {
     const onDocClick = (e) => {
@@ -234,8 +245,25 @@ export default function ChatPage() {
           >
             Send
           </button>
+          <button
+            onClick={() => setShowVideoCall(true)}
+            className="px-4 py-2 rounded-lg font-semibold text-slate-100 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 transition-all"
+            title="Start Video Call"
+          >
+            📞 Video Call
+          </button>
         </div>
       </div>
+      
+      {showVideoCall && currentUserId && otherUserId && (
+        <VideoCallModal
+          mentorshipId={mentorshipId}
+          currentUserId={currentUserId}
+          otherUserId={otherUserId}
+          isInitiator={true}
+          onClose={() => setShowVideoCall(false)}
+        />
+      )}
     </div>
   );
 }
