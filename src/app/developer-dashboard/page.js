@@ -446,6 +446,9 @@ export default function DeveloperDashboardPage() {
                     <div className={`text-xs uppercase tracking-wide ${r.status === 'accepted' ? 'text-emerald-400' : r.status === 'pending' ? 'text-amber-300' : 'text-rose-400'}`}>{r.status}</div>
                   </div>
                   <div className="text-slate-300 text-sm mb-1">{[r.mentorState, r.mentorDistrict, r.mentorCollege].filter(Boolean).join(' • ')}</div>
+                  {r.mentorSkills && r.mentorSkills.length > 0 && (
+                    <div className="text-slate-300 text-sm mb-2">Skills: {r.mentorSkills.join(', ')}</div>
+                  )}
                   {r.status === 'accepted' && (
                     <div className="mt-2 flex gap-2">
                       {r.mentorEmail && (

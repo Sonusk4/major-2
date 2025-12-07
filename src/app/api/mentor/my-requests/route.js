@@ -27,7 +27,7 @@ export async function GET(request) {
 
     const mentorIds = [...new Set(requests.map(r => String(r.mentor)))];
     const mentors = await User.find({ _id: { $in: mentorIds } }).select('name email').lean();
-    const mentorProfiles = await Profile.find({ user: { $in: mentorIds } }).select('headline state district college').lean();
+    const mentorProfiles = await Profile.find({ user: { $in: mentorIds } }).select('headline state district college skills').lean();
 
     const idToUser = new Map(mentors.map(m => [String(m._id), m]));
     const idToProfile = new Map(mentorProfiles.map(p => [String(p.user), p]));
@@ -45,6 +45,7 @@ export async function GET(request) {
         mentorState: p?.state || '',
         mentorDistrict: p?.district || '',
         mentorCollege: p?.college || '',
+        mentorSkills: p?.skills || [],
         createdAt: r.createdAt
       };
     });
