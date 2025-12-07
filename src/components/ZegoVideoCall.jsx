@@ -1,21 +1,31 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import ZegoExpressEngine from 'zego-express-engine-webrtc';
 
-export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, otherUserId }) {
+// Client-only component wrapper
+function ZegoVideoCallContent({ mentorshipId, onClose, currentUserId, otherUserId }) {
   const [token, setToken] = useState(null);
   const [callStatus, setCallStatus] = useState('initializing');
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [remoteUserList, setRemoteUserList] = useState([]);
+  const [mounted, setMounted] = useState(false);
   
   const zegoRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef({});
 
+  // Ensure component only runs on client
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Get token from backend
   useEffect(() => {
+    if (!mounted) return;
+
     const getToken = async () => {
       try {
         console.log('Requesting token for userId:', currentUserId, 'roomId:', mentorshipId);
@@ -47,11 +57,11 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
     if (currentUserId && mentorshipId) {
       getToken();
     }
-  }, [currentUserId, mentorshipId, onClose]);
+  }, [currentUserId, mentorshipId, onClose, mounted]);
 
-  // Initialize ZEGO and join room
+  // Initialize ZEGO and join room (client-only)
   useEffect(() => {
-    if (!token) return;
+    if (!token || !mounted) return;
 
     const initZego = async () => {
       try {
@@ -182,7 +192,7 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
         localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [token, currentUserId, mentorshipId, onClose]);
+  }, [token, currentUserId, mentorshipId, onClose, mounted]);
 
   // Toggle audio
   const toggleAudio = () => {
@@ -309,4 +319,9 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
       </div>
     </div>
   );
+}
+
+// Export as dynamic client component (no SSR)
+export default function ZegoVideoCall(props) {
+  return <ZegoVideoCallContent {...props} />;
 }
