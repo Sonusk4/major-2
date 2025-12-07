@@ -61,13 +61,6 @@ export async function POST(request) {
       const buffer = await file.arrayBuffer();
       const base64String = Buffer.from(buffer).toString('base64');
       
-      // Create URL encoded form data
-      const params = new URLSearchParams();
-      params.append('file', `data:${file.type};base64,${base64String}`);
-      params.append('folder', 'career-hub/profile-pictures');
-      params.append('public_id', `profile-${user._id}-${Date.now()}`);
-      params.append('api_key', CLOUDINARY_API_KEY);
-
       const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
       
       console.log('Uploading to Cloudinary:', {
@@ -78,17 +71,23 @@ export async function POST(request) {
         fileType: file.type
       });
 
-      const authHeader = Buffer.from(`${CLOUDINARY_API_KEY}:${CLOUDINARY_API_SECRET}`).toString('base64');
+      // Build request body with all fields
+      const body = new URLSearchParams();
+      body.append('file', `data:${file.type};base64,${base64String}`);
+      body.append('folder', 'career-hub/profile-pictures');
+      body.append('public_id', `profile-${user._id}-${Date.now()}`);
+      body.append('api_key', CLOUDINARY_API_KEY);
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        body: params,
+        body: body.toString(),
         headers: {
-          'Authorization': `Basic ${authHeader}`
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
       });
 
       const responseText = await response.text();
+      console.log('Cloudinary response status:', response.status);
       
       if (!response.ok) {
         console.error('Cloudinary upload failed:', {
@@ -105,6 +104,11 @@ export async function POST(request) {
       } catch (e) {
         console.error('Failed to parse Cloudinary response:', responseText.substring(0, 500));
         throw new Error('Invalid response from Cloudinary');
+      }
+
+      if (!uploadResult.secure_url) {
+        console.error('No secure_url in Cloudinary response:', uploadResult);
+        throw new Error('Cloudinary did not return a secure URL');
       }
 
       const fileUrl = uploadResult.secure_url;
