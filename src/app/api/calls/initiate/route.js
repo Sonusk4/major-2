@@ -1,4 +1,5 @@
 // src/app/api/calls/initiate/route.js
+// API endpoint for initiating calls in mentorship sessions
 import { dbConnect } from '@/lib/dbConnect';
 import Mentorship from '@/models/Mentorship';
 
