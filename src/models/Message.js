@@ -5,7 +5,9 @@ const MessageSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   text: { type: String, required: true },
   editedAt: { type: Date },
-  deletedAt: { type: Date }
+  deletedAt: { type: Date },
+  seen: { type: Boolean, default: false },
+  seenAt: { type: Date }
 }, { timestamps: true });
 
 MessageSchema.index({ mentorship: 1, createdAt: 1 });

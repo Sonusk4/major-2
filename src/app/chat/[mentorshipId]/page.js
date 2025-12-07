@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 
@@ -17,6 +17,7 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [mentorId, setMentorId] = useState(null);
   const [menteeId, setMenteeId] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -24,7 +25,7 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) return;
     const res = await fetch(`/api/chat/${mentorshipId}`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -32,8 +33,9 @@ export default function ChatPage() {
       const data = await res.json();
       const list = Array.isArray(data.messages) ? data.messages : [];
       setMessages(list.map(m => ({ ...m, sender: String(m.sender) })));
+      setUnreadCount(data.unreadCount || 0);
     }
-  };
+  }, [mentorshipId]);
 
   useEffect(() => {
     (async () => {
@@ -61,6 +63,8 @@ export default function ChatPage() {
             setMessages(prev => prev.map(m => m._id === payload.item._id ? { ...m, text: payload.item.text, editedAt: payload.item.editedAt } : m));
           } else if (payload?.type === 'message:delete') {
             setMessages(prev => prev.map(m => m._id === payload.item._id ? { ...m, text: 'Message deleted', deletedAt: payload.item.deletedAt } : m));
+          } else if (payload?.type === 'message:seen') {
+            setMessages(prev => prev.map(m => payload.item.ids.includes(m._id) ? { ...m, seen: true, seenAt: payload.item.seenAt } : m));
           }
         } catch (_) {}
       };
@@ -69,7 +73,7 @@ export default function ChatPage() {
       };
     }
     return () => { try { es && es.close(); } catch (_) {} };
-  }, [mentorshipId]);
+  }, [mentorshipId, loadMessages]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -142,7 +146,14 @@ export default function ChatPage() {
     <div className="min-h-screen bg-neutral-950">
       <Navbar />
       <div className="max-w-3xl mx-auto px-6 py-6">
-        <h1 className="text-2xl font-bold text-slate-100 mb-4">Mentorship Chat</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-slate-100">Mentorship Chat</h1>
+          {unreadCount > 0 && (
+            <div className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+              {unreadCount}
+            </div>
+          )}
+        </div>
         <div ref={containerRef} className="relative h-[60vh] overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
           {loading ? (
             <div className="text-slate-300">Loading...</div>
@@ -186,6 +197,15 @@ export default function ChatPage() {
                         <div className="whitespace-pre-wrap break-words">{m.text}</div>
                         <div className={`mt-1 text-[10px] opacity-80 flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
                           <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          {isMine && (
+                            <span className="ml-1">
+                              {m.seen ? (
+                                <span title="Seen">✓✓</span>
+                              ) : (
+                                <span title="Sent">✓</span>
+                              )}
+                            </span>
+                          )}
                           {m.editedAt && <span className="italic">edited</span>}
                         </div>
                       </div>

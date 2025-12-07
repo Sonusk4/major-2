@@ -33,8 +33,41 @@ export async function GET(request, { params }) {
     if (mentorship.status !== 'accepted') return NextResponse.json({ message: 'Mentorship not accepted' }, { status: 403 });
     if (!canAccess(authUser.id, mentorship)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
+    // Get all messages
     const messages = await Message.find({ mentorship: mentorshipId }).sort({ createdAt: 1 }).lean();
-    return NextResponse.json({ messages }, { status: 200 });
+    
+    // Mark messages from other user as seen
+    const otherUserId = String(mentorship.mentor) === String(authUser.id) ? mentorship.mentee : mentorship.mentor;
+    const unseenMessages = await Message.find({ 
+      mentorship: mentorshipId, 
+      sender: otherUserId, 
+      seen: false 
+    }).select('_id');
+    
+    if (unseenMessages.length > 0) {
+      const unseenIds = unseenMessages.map(m => String(m._id));
+      await Message.updateMany(
+        { mentorship: mentorshipId, sender: otherUserId, seen: false },
+        { seen: true, seenAt: new Date() }
+      );
+      // Publish message:seen event for real-time update
+      publish(mentorshipId, {
+        type: 'message:seen',
+        item: {
+          ids: unseenIds,
+          seenAt: new Date()
+        }
+      });
+    }
+    
+    // Get unread count for current user
+    const unreadCount = await Message.countDocuments({ 
+      mentorship: mentorshipId, 
+      sender: otherUserId, 
+      seen: false 
+    });
+
+    return NextResponse.json({ messages, unreadCount }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ message: 'Server error', error: error.message }, { status: 500 });
   }
@@ -55,8 +88,20 @@ export async function POST(request, { params }) {
     if (mentorship.status !== 'accepted') return NextResponse.json({ message: 'Mentorship not accepted' }, { status: 403 });
     if (!canAccess(authUser.id, mentorship)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
-    const msg = await Message.create({ mentorship: mentorshipId, sender: authUser.id, text: String(text).slice(0, 5000) });
-    publish(mentorshipId, { type: 'message', item: { _id: String(msg._id), text: msg.text, createdAt: msg.createdAt, sender: String(msg.sender) } });
+    const msg = await Message.create({ mentorship: mentorshipId, sender: authUser.id, text: String(text).slice(0, 5000), seen: false });
+    
+    // Publish message with all fields including seen status
+    publish(mentorshipId, { 
+      type: 'message', 
+      item: { 
+        _id: String(msg._id), 
+        text: msg.text, 
+        createdAt: msg.createdAt, 
+        sender: String(msg.sender),
+        seen: msg.seen
+      } 
+    });
+    
     return NextResponse.json({ message: 'Sent', item: msg }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ message: 'Server error', error: error.message }, { status: 500 });
