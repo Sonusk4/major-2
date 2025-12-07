@@ -2,8 +2,14 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import Profile from '@/models/Profile';
 import jwt from 'jsonwebtoken';
-import fs from 'fs';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // This helper function correctly extracts the token from the 'Authorization' header
 const getDataFromToken = (request) => {
@@ -34,35 +40,41 @@ export async function POST(request) {
       return NextResponse.json({ message: "No file uploaded" }, { status: 400 });
     }
 
+    // Validate file is a PDF
+    if (file.type !== 'application/pdf') {
+      return NextResponse.json({ message: "Only PDF files are allowed" }, { status: 400 });
+    }
+
+    // Validate file size (max 10MB for PDFs)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ message: "File size must be less than 10MB" }, { status: 400 });
+    }
+
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     console.log('File buffer size:', fileBuffer.length);
     
-    // Extract text from PDF using a simple approach
-    let parsedText = '';
-    try {
-      // For now, we'll use a placeholder that indicates the PDF was uploaded
-      // Users can manually enter their resume text in the analyzer
-      parsedText = `PDF Resume uploaded successfully. Please use the Resume Analyzer to paste your resume content for analysis, or manually enter your information in your profile.`;
-    } catch (parseError) {
-      console.error('PDF parsing error:', parseError);
-      parsedText = `PDF uploaded but text extraction failed. Please manually enter your resume information in the Resume Analyzer or your profile.`;
-    }
+    // Placeholder text indicating PDF was uploaded
+    let parsedText = `PDF Resume uploaded successfully. Please use the Resume Analyzer to paste your resume content for analysis, or manually enter your information in your profile.`;
 
-    // Persist uploaded PDF to public/uploads/resumes so it can be served statically
-    const fileName = `resume-${userData.id}-${Date.now()}.pdf`;
-    const publicDir = path.join(process.cwd(), 'public');
-    const resumesDir = path.join(publicDir, 'uploads', 'resumes');
-    try {
-      if (!fs.existsSync(resumesDir)) {
-        fs.mkdirSync(resumesDir, { recursive: true });
-      }
-      const filePath = path.join(resumesDir, fileName);
-      fs.writeFileSync(filePath, fileBuffer);
-    } catch (writeErr) {
-      console.error('Error saving resume PDF:', writeErr);
-      return NextResponse.json({ message: "Failed to save uploaded file" }, { status: 500 });
-    }
-    const pdfUrl = `/uploads/resumes/${fileName}`;
+    // Upload PDF to Cloudinary
+    const uploadResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'career-hub/resumes',
+          public_id: `resume-${userData.id}-${Date.now()}`,
+          resource_type: 'raw',
+          type: 'upload',
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+
+      uploadStream.end(fileBuffer);
+    });
+
+    const pdfUrl = uploadResult.secure_url;
 
     // Always save the profile, even if parsing failed
     // The user can manually edit their profile information later
@@ -87,10 +99,11 @@ export async function POST(request) {
 
     console.log('Resume upload - User ID:', userData.id);
     console.log('Resume upload - Profile updated:', !!updatedProfile);
-    console.log('Resume upload - Profile data:', updatedProfile);
+    console.log('Resume upload - PDF URL:', pdfUrl);
 
-    return NextResponse.json({ message: "Resume parsed and saved successfully", fileUrl: pdfUrl }, { status: 200 });
+    return NextResponse.json({ message: "Resume uploaded successfully to cloud", fileUrl: pdfUrl }, { status: 200 });
   } catch (error) {
+    console.error('Resume upload error:', error);
     return NextResponse.json({ message: "Server Error", error: error.message }, { status: 500 });
   }
 }

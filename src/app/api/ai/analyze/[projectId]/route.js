@@ -309,24 +309,29 @@ export async function GET(request, { params }) {
       const result = await model.generateContent(prompt);
       responseText = await result.response.text();
     } catch (geminiErr) {
-      console.error('Gemini call failed, using heuristic fallback. Reason:', geminiErr?.message || geminiErr);
-      const jsonResponse = {
-        matchScore: heuristicScore,
-        assessmentTitle: "Analysis Available",
-        executiveSummary: "Heuristic analysis based on keyword overlap. Detailed AI analysis was unavailable.",
-        strengths: matchedSkills.length > 0 ? ["Some required skills found in resume"] : ["Could not confirm required skills"],
-        weaknesses: unmatchedSkills.length ? ["Missing or unclear skills present in requirements"] : ["None detected by heuristic"],
-        missingKeywords: unmatchedSkills,
-        matchedSkills
-      };
-      // Enrich with recommended skills and courses similarly to the AI path
+      console.error('Gemini call failed, trying OpenRouter. Reason:', geminiErr?.message || geminiErr);
       try {
-        const { recommendedSkills, suggestedCourses } = getCourseRecommendations(unmatchedSkills);
-        jsonResponse.recommendedSkills = recommendedSkills;
-        jsonResponse.suggestedCourses = suggestedCourses;
-      } catch (_) {}
+        responseText = await analyzeWithOpenRouter(prompt);
+      } catch (openRouterErr) {
+        console.error('OpenRouter call failed, using heuristic fallback. Reason:', openRouterErr?.message || openRouterErr);
+        const jsonResponse = {
+          matchScore: heuristicScore,
+          assessmentTitle: "Analysis Available",
+          executiveSummary: "Heuristic analysis based on keyword overlap. Detailed AI analysis was unavailable.",
+          strengths: matchedSkills.length > 0 ? ["Some required skills found in resume"] : ["Could not confirm required skills"],
+          weaknesses: unmatchedSkills.length ? ["Missing or unclear skills present in requirements"] : ["None detected by heuristic"],
+          missingKeywords: unmatchedSkills,
+          matchedSkills
+        };
+        // Enrich with recommended skills and courses similarly to the AI path
+        try {
+          const { recommendedSkills, suggestedCourses } = getCourseRecommendations(unmatchedSkills);
+          jsonResponse.recommendedSkills = recommendedSkills;
+          jsonResponse.suggestedCourses = suggestedCourses;
+        } catch (_) {}
 
-      return NextResponse.json(jsonResponse, { status: 200 });
+        return NextResponse.json(jsonResponse, { status: 200 });
+      }
     }
     
     // Clean and parse JSON response
@@ -385,5 +390,59 @@ export async function GET(request, { params }) {
       message: "An error occurred during AI analysis.",
       error: error.message 
     }, { status: 500 });
+  }
+}
+
+async function analyzeWithOpenRouter(prompt) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENROUTER_API_KEY');
+  }
+
+  const apiEndpoint = process.env.OPENROUTER_API_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions';
+  const modelId = process.env.OPENROUTER_MODEL || 'amazon/nova-2-lite-v1:free';
+
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json'
+  };
+
+  const payload = {
+    model: modelId,
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  };
+
+  try {
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid OpenRouter response structure');
+    }
+
+    const text = data.choices[0].message.content;
+    if (!text) {
+      throw new Error('Empty OpenRouter response');
+    }
+
+    return text;
+  } catch (error) {
+    console.error('OpenRouter fetch error:', error);
+    throw error;
   }
 }

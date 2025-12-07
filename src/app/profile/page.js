@@ -48,6 +48,7 @@ export default function ProfilePage() {
   const [allSkills, setAllSkills] = useState({ technical: [], nonTechnical: [] });
   const [skillCategory, setSkillCategory] = useState('All');
   const [skillFilter, setSkillFilter] = useState('');
+  const [downloadLoading, setDownloadLoading] = useState(false);
 
   useEffect(() => {
     // Preload districts mapping for all states
@@ -325,6 +326,49 @@ export default function ProfilePage() {
       setResumeMessage('An error occurred during upload.');
     } finally {
       setResumeLoading(false);
+    }
+  };
+
+  const handleDownloadResume = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please log in to download your resume.');
+      return;
+    }
+
+    setDownloadLoading(true);
+    try {
+      const res = await fetch('/api/resume/download', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.pdfUrl) {
+          // Direct fetch and download the PDF file
+          const pdfResponse = await fetch(data.pdfUrl);
+          const blob = await pdfResponse.blob();
+          
+          // Create blob URL and trigger download
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `resume-${Date.now()}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up blob URL
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        }
+      } else {
+        alert('Failed to download resume. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error downloading resume:', error);
+      alert('An error occurred while downloading the resume.');
+    } finally {
+      setDownloadLoading(false);
     }
   };
 
@@ -797,15 +841,15 @@ export default function ProfilePage() {
                   Practice Interview
                 </a>
                 {profile.resumePDF && (
-                  <a
-                    href={profile.resumePDF}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-2 rounded-lg font-semibold text-slate-100 bg-neutral-800 border border-neutral-700 hover:border-violet-500/40 hover:shadow-[0_0_24px_rgba(139,92,246,0.25)] transition-all"
+                  <button
+                    type="button"
+                    onClick={handleDownloadResume}
+                    disabled={downloadLoading}
+                    className="px-6 py-2 rounded-lg font-semibold text-slate-100 bg-gradient-to-r from-blue-600 to-cyan-600 shadow-[0_0_18px_rgba(59,130,246,0.35)] hover:shadow-[0_0_28px_rgba(34,211,238,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <i className="fas fa-file-pdf mr-2"></i>
-                    View current PDF
-                  </a>
+                    <i className="fas fa-download mr-2"></i>
+                    {downloadLoading ? 'Downloading...' : 'Download PDF'}
+                  </button>
                 )}
                 <button
                   type="button"

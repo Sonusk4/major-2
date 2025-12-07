@@ -81,47 +81,111 @@ async function generateInitialQuestion(resumeText, targetRole) {
     try {
       data = JSON.parse(String(text).replace(/```json|```/g, '').trim());
     } catch (_) {
-      // Role-first fallback question bank
-      const roleBank = {
-        'Frontend Developer': 'Implement a performant, accessible component that fetches and renders paginated data. How would you handle loading states, errors, and list virtualization?',
-        'Backend Developer': 'Design a REST API endpoint to create and list orders. What data model, validation, error handling, and pagination would you implement?',
-        'Full Stack Developer': 'Describe the end-to-end design of a feature that requires both API and UI work. How would you structure the API, database, and frontend state management?',
-        'Software Engineer': 'Pick a recent project and explain a key technical decision you made. What alternatives did you evaluate and why did you choose your approach?',
-        'Data Scientist': 'You need to build a model to predict churn. How would you approach feature engineering, evaluation metrics, and validation strategy?',
-        'DevOps Engineer': 'Outline a CI/CD pipeline for a microservice. How do you handle testing, rollbacks, secrets, and infrastructure as code?',
-        'Product Manager': 'How would you define success metrics and prioritization for launching a new onboarding experience?',
-        'UI/UX Designer': 'Describe your process to design and validate a new dashboard. How do you gather requirements, prototype, and test usability?',
-        'Mobile Developer': 'How would you architect offline-first sync and conflict resolution in a mobile app?',
-        'Machine Learning Engineer': 'Design an ML inference service. How do you handle model versioning, performance, and monitoring in production?',
-        'Cloud Engineer': 'How would you design a multi-AZ, auto-scaling web service with observability and cost controls?',
-        'Cybersecurity Analyst': 'How would you investigate and respond to a suspected credential stuffing attack? What detection and prevention steps would you take?'
-      };
-      const generic = 'Briefly summarize a recent project relevant to the role and the most challenging technical problem you solved. How did you measure success?';
-      const picked = roleBank[targetRole] || generic;
-      const greeting = `Hello! I'm AVA, your AI Virtual Advisor for the ${targetRole} interview.`;
-      return `${greeting}\n\n${picked}`;
+      throw new Error('Gemini JSON parse failed');
     }
     return String(data?.message || '').trim() || 'Tell me about a project you are most proud of and why.';
-  } catch (err) {
-    // ultimate fallback
-    const skills = extractSkillsFromResume(resumeText);
-    const projects = extractProjectsFromResume(resumeText);
-    const experience = extractExperienceFromResume(resumeText);
-    const greeting = `Hello! I'm AVA, your AI Virtual Advisor for the ${targetRole} interview.`;
-    let firstQuestion = '';
-    if (projects.length > 0) {
-      const recentProject = projects[0];
-      firstQuestion = `Walk me through your specific contributions to this project: ${recentProject}. What technologies did you use and why?`;
-    } else if (skills.length > 0) {
-      const primarySkill = skills[0];
-      firstQuestion = `Tell me about a challenge you solved using ${primarySkill}. How did you approach it and measure success?`;
-    } else if (experience > 0) {
-      firstQuestion = `You mention ${experience} years of experience. Describe a significant technical challenge you recently solved and its impact.`;
-    } else {
-      firstQuestion = `Briefly summarize your background and why you're a strong fit for ${targetRole}.`;
+  } catch (geminiErr) {
+    console.error('Gemini failed, trying OpenAI:', geminiErr?.message);
+    try {
+      return await generateInitialQuestionWithOpenAI(resumeText, targetRole);
+    } catch (openaiErr) {
+      console.error('OpenAI failed, trying OpenRouter:', openaiErr?.message);
+      try {
+        return await generateInitialQuestionWithOpenRouter(resumeText, targetRole);
+      } catch (openRouterErr) {
+        console.error('OpenRouter failed, using heuristic:', openRouterErr?.message);
+        // ultimate fallback
+        const skills = extractSkillsFromResume(resumeText);
+        const projects = extractProjectsFromResume(resumeText);
+        const experience = extractExperienceFromResume(resumeText);
+        const greeting = `Hello! I'm AVA, your AI Virtual Advisor for the ${targetRole} interview.`;
+        let firstQuestion = '';
+        if (projects.length > 0) {
+          const recentProject = projects[0];
+          firstQuestion = `Walk me through your specific contributions to this project: ${recentProject}. What technologies did you use and why?`;
+        } else if (skills.length > 0) {
+          const primarySkill = skills[0];
+          firstQuestion = `Tell me about a challenge you solved using ${primarySkill}. How did you approach it and measure success?`;
+        } else if (experience > 0) {
+          firstQuestion = `You mention ${experience} years of experience. Describe a significant technical challenge you recently solved and its impact.`;
+        } else {
+          firstQuestion = `Briefly summarize your background and why you're a strong fit for ${targetRole}.`;
+        }
+        return `${greeting}\n\n${firstQuestion}`;
+      }
     }
-    return `${greeting}\n\n${firstQuestion}`;
   }
+}
+
+async function generateInitialQuestionWithOpenAI(resumeText, targetRole) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
+  
+  const modelId = process.env.OPENAI_MODEL || 'gpt-4-turbo-preview';
+  const sys = `You are AVA, an interview coach. Generate exactly ONE specific first question focused PRIMARILY on the selected target role. Use resume context only to tailor terminology, but the question must be appropriate for the role even if the resume is empty. Be concise and professional.`;
+  const prompt = `${sys}\n\nTarget role: ${targetRole}\nResume (optional context):\n${resumeText}\n\nReturn ONLY JSON with this schema: {"message": string}`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [{ role: 'user', content: prompt + "\nReturn ONLY JSON. No prose, no code fences." }],
+      temperature: 0.7,
+      max_tokens: 500
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error('Invalid OpenAI response');
+  }
+
+  const text = data.choices[0].message.content;
+  const parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim());
+  return String(parsed?.message || '').trim() || 'Tell me about a project you are most proud of and why.';
+}
+
+async function generateInitialQuestionWithOpenRouter(resumeText, targetRole) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('Missing OPENROUTER_API_KEY');
+  
+  const modelId = process.env.OPENROUTER_MODEL || 'amazon/nova-2-lite-v1:free';
+  const apiEndpoint = process.env.OPENROUTER_API_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions';
+  const sys = `You are AVA, an interview coach. Generate exactly ONE specific first question focused PRIMARILY on the selected target role. Use resume context only to tailor terminology, but the question must be appropriate for the role even if the resume is empty. Be concise and professional.`;
+  const prompt = `${sys}\n\nTarget role: ${targetRole}\nResume (optional context):\n${resumeText}\n\nReturn ONLY JSON with this schema: {"message": string}`;
+
+  const response = await fetch(apiEndpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [{ role: 'user', content: prompt + "\nReturn ONLY JSON. No prose, no code fences." }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error('Invalid OpenRouter response');
+  }
+
+  const text = data.choices[0].message.content;
+  const parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim());
+  return String(parsed?.message || '').trim() || 'Tell me about a project you are most proud of and why.';
 }
 
 function extractSkillsFromResume(resumeText) {

@@ -77,13 +77,18 @@ export async function POST(request) {
       }
     }
 
-    // Try Gemini AI first; if unavailable, fall back to local heuristic
+    // Try Gemini AI first; if unavailable, fall back to OpenRouter; if that fails, use local heuristic
     let analysis;
     try {
       analysis = await analyzeWithGemini(textForAnalysis);
     } catch (aiErr) {
-      console.error('Gemini analysis failed, falling back. Reason:', aiErr?.message || aiErr);
-      analysis = await analyzeResumeWithAI(textForAnalysis);
+      console.error('Gemini analysis failed, trying OpenRouter. Reason:', aiErr?.message || aiErr);
+      try {
+        analysis = await analyzeWithOpenRouter(textForAnalysis);
+      } catch (openRouterErr) {
+        console.error('OpenRouter analysis failed, falling back to local heuristic. Reason:', openRouterErr?.message || openRouterErr);
+        analysis = await analyzeResumeWithAI(textForAnalysis);
+      }
     }
 
     return NextResponse.json(analysis);
@@ -151,6 +156,100 @@ async function analyzeWithGemini(resumeText) {
   }));
 
   return parsed;
+}
+
+async function analyzeWithOpenRouter(resumeText) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENROUTER_API_KEY');
+  }
+
+  const apiEndpoint = process.env.OPENROUTER_API_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions';
+  const modelId = process.env.OPENROUTER_MODEL || 'amazon/nova-2-lite-v1:free';
+
+  const prompt = `You are a career coach. Return ONLY valid JSON with no explanations or code fences. Use this exact schema:
+  {"roleAnalysis":[{"roleTitle":string,"matchPercentage":number,"justification":string,"skillGaps":[{"gap":string,"suggestions":[{"type":string,"title":string,"platform":string}]}]}]}
+  Resume:\n${resumeText}`;
+
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json'
+  };
+
+  const payload = {
+    model: modelId,
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  };
+
+  try {
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid OpenRouter response structure');
+    }
+
+    const text = data.choices[0].message.content;
+    if (!text) {
+      throw new Error('Empty OpenRouter response');
+    }
+
+    // Normalize: remove code fences, extract first {...} block
+    const fenceCleaned = String(text).replace(/```json|```/gi, '').trim();
+    const startIdx = fenceCleaned.indexOf('{');
+    const endIdx = fenceCleaned.lastIndexOf('}');
+    if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+      throw new Error('OpenRouter did not return JSON');
+    }
+    const jsonString = fenceCleaned.slice(startIdx, endIdx + 1);
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (e) {
+      throw new Error('Invalid JSON from OpenRouter');
+    }
+
+    // Basic validation
+    if (!parsed || !Array.isArray(parsed.roleAnalysis)) {
+      throw new Error('Invalid JSON shape from OpenRouter');
+    }
+
+    // Coerce percentages to integers 0-100
+    parsed.roleAnalysis = parsed.roleAnalysis.map(item => ({
+      roleTitle: String(item.roleTitle || ''),
+      matchPercentage: Math.max(0, Math.min(100, Math.round(Number(item.matchPercentage) || 0))),
+      justification: String(item.justification || ''),
+      skillGaps: Array.isArray(item.skillGaps) ? item.skillGaps.map(g => ({
+        gap: String(g.gap || ''),
+        suggestions: Array.isArray(g.suggestions) ? g.suggestions.map(s => ({
+          type: String(s.type || 'Course'),
+          title: String(s.title || ''),
+          platform: String(s.platform || '')
+        })) : []
+      })) : []
+    }));
+
+    return parsed;
+  } catch (error) {
+    console.error('OpenRouter fetch error:', error);
+    throw error;
+  }
 }
 
 async function analyzeResumeWithAI(resumeText) {
