@@ -18,6 +18,8 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
   useEffect(() => {
     const getToken = async () => {
       try {
+        console.log('Requesting token for userId:', currentUserId, 'roomId:', mentorshipId);
+        
         const res = await fetch('/api/video-call/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -26,11 +28,18 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
             roomId: mentorshipId,
           }),
         });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(`Token generation failed: ${errorData.error}`);
+        }
+
         const data = await res.json();
+        console.log('Token received successfully');
         setToken(data.token);
       } catch (error) {
         console.error('Error getting token:', error);
-        alert('Failed to get video call token');
+        alert(`Failed to get video call token: ${error.message}`);
         onClose();
       }
     };
@@ -46,13 +55,16 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
 
     const initZego = async () => {
       try {
-        const zego = new ZegoExpressEngine(
-          parseInt(process.env.NEXT_PUBLIC_ZEGO_APP_ID),
-          window.location.hostname
-        );
+        const appID = parseInt(process.env.NEXT_PUBLIC_ZEGO_APP_ID);
+        const server = window.location.hostname;
+        
+        console.log('Initializing ZEGO with AppID:', appID, 'Server:', server);
+
+        // Create ZEGO instance
+        const zego = new ZegoExpressEngine(appID, server);
         zegoRef.current = zego;
 
-        // Add event listeners
+        // Set up event listeners BEFORE logging in
         zego.on('publisherStateUpdate', (updateInfo) => {
           console.log('Publisher state:', updateInfo);
           if (updateInfo.state === 'PUBLISHING') {
@@ -63,62 +75,94 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
         zego.on('roomStreamUpdate', (roomStreamUpdateInfo) => {
           console.log('Room stream update:', roomStreamUpdateInfo);
           if (roomStreamUpdateInfo.type === 'ADD') {
-            // Remote user joined
-            setRemoteUserList((prev) => [
-              ...prev,
-              ...roomStreamUpdateInfo.streamList.map((s) => s.user.userID),
-            ]);
+            setRemoteUserList((prev) => {
+              const newList = new Set([...prev]);
+              roomStreamUpdateInfo.streamList.forEach((s) => {
+                newList.add(s.user.userID);
+              });
+              return Array.from(newList);
+            });
           } else if (roomStreamUpdateInfo.type === 'DELETE') {
-            // Remote user left
             setRemoteUserList((prev) =>
               prev.filter(
-                (id) => !roomStreamUpdateInfo.streamList.some((s) => s.user.userID === id)
+                (id) =>
+                  !roomStreamUpdateInfo.streamList.some(
+                    (s) => s.user.userID === id
+                  )
               )
             );
           }
         });
 
         zego.on('remoteStreamAvailable', async (streamList) => {
-          console.log('Remote stream available:', streamList);
+          console.log('Remote streams available:', streamList);
           for (const stream of streamList) {
             try {
+              console.log('Starting to play stream:', stream.streamID);
               const remoteStream = await zego.startPlayingStream(stream.streamID);
-              remoteStreamRef.current[stream.streamID] = remoteStream;
-              // Get remote video element and set stream
-              const videoEl = document.getElementById(`remote-${stream.user.userID}`);
-              if (videoEl && remoteStream) {
+              console.log('Remote stream playing:', stream.streamID);
+              
+              // Set to video element
+              const videoEl = document.getElementById(
+                `remote-${stream.user.userID}`
+              );
+              if (videoEl) {
                 videoEl.srcObject = remoteStream;
+                console.log('Remote stream attached to video element');
               }
-            } catch (error) {
-              console.error('Error playing remote stream:', error);
+            } catch (err) {
+              console.error('Error playing remote stream:', err);
             }
           }
         });
 
-        // Login to room
-        await zego.loginRoom(mentorshipId, { userID: currentUserId.toString(), userName: `User-${currentUserId}` }, token);
-        console.log('Logged in to room');
+        zego.on('remoteStreamUpdated', async (streamList) => {
+          console.log('Remote streams updated:', streamList);
+        });
 
-        // Get local stream
-        const localStream = await zego.getUserMedia({
+        zego.on('error', (error) => {
+          console.error('ZEGO Error:', error);
+        });
+
+        // Get local media before joining room
+        console.log('Requesting local media...');
+        const localStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
-          video: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
         });
         localStreamRef.current = localStream;
+        console.log('Local media obtained');
 
-        // Set local video element
+        // Set local video
         const localVideoEl = document.getElementById('local-video');
         if (localVideoEl) {
           localVideoEl.srcObject = localStream;
+          console.log('Local video set');
         }
 
+        // Login to room
+        console.log('Logging into room:', mentorshipId);
+        const roomUserInfo = {
+          userID: currentUserId.toString(),
+          userName: `User-${currentUserId}`,
+        };
+        
+        await zego.loginRoom(mentorshipId, roomUserInfo, token);
+        console.log('Logged into room successfully');
+
         // Publish stream
+        console.log('Starting to publish stream...');
         await zego.startPublishingStream(`stream-${currentUserId}`, localStream);
-        console.log('Publishing stream');
+        console.log('Stream published successfully');
 
       } catch (error) {
         console.error('ZEGO initialization error:', error);
-        alert('Failed to initialize video call');
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+        });
+        alert(`Failed to initialize video call: ${error.message}`);
         onClose();
       }
     };
@@ -128,13 +172,14 @@ export default function ZegoVideoCall({ mentorshipId, onClose, currentUserId, ot
     return () => {
       if (zegoRef.current) {
         try {
+          zegoRef.current.stopPublishingStream();
           zegoRef.current.logoutRoom();
-          if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach((track) => track.stop());
-          }
         } catch (error) {
           console.error('Cleanup error:', error);
         }
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, [token, currentUserId, mentorshipId, onClose]);
