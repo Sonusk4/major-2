@@ -3,14 +3,10 @@ import jwt from 'jsonwebtoken';
 import { dbConnect } from '@/lib/dbConnect';
 import User from '@/models/User';
 import Profile from '@/models/Profile';
-import { v2 as cloudinary } from 'cloudinary';
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
 export async function POST(request) {
   try {
@@ -48,62 +44,89 @@ export async function POST(request) {
       return NextResponse.json({ message: 'File size must be less than 5MB' }, { status: 400 });
     }
 
-    // Upload to Cloudinary
-    const fileArrayBuffer = await file.arrayBuffer();
-    const fileBuffer = Buffer.from(fileArrayBuffer);
-
     // Verify Cloudinary is configured
-    if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+      console.error('Cloudinary configuration missing:', {
+        cloudName: CLOUDINARY_CLOUD_NAME ? 'present' : 'missing',
+        apiKey: CLOUDINARY_API_KEY ? 'present' : 'missing',
+        apiSecret: CLOUDINARY_API_SECRET ? 'present' : 'missing'
+      });
       return NextResponse.json({ 
-        message: 'Cloudinary not properly configured',
-        debug: {
-          cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-          apiKey: process.env.CLOUDINARY_API_KEY ? 'present' : 'missing',
-          apiSecret: process.env.CLOUDINARY_API_SECRET ? 'present' : 'missing'
-        }
+        message: 'Cloudinary not properly configured'
       }, { status: 500 });
     }
 
-    const uploadResult = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'career-hub/profile-pictures',
-          public_id: `profile-${user._id}-${Date.now()}`,
-          resource_type: 'auto',
-        },
-        (error, result) => {
-          if (error) {
-            console.error('Cloudinary upload stream error:', {
-              message: error.message,
-              http_code: error.http_code,
-              status: error.status
-            });
-            reject(error);
-          } else resolve(result);
-        }
-      );
+    // Upload to Cloudinary via REST API
+    try {
+      const buffer = await file.arrayBuffer();
+      const base64String = Buffer.from(buffer).toString('base64');
+      
+      // Create URL encoded form data
+      const params = new URLSearchParams();
+      params.append('file', `data:${file.type};base64,${base64String}`);
+      params.append('folder', 'career-hub/profile-pictures');
+      params.append('public_id', `profile-${user._id}-${Date.now()}`);
+      params.append('api_key', CLOUDINARY_API_KEY);
 
-      uploadStream.on('error', (error) => {
-        console.error('Cloudinary stream error event:', error);
-        reject(error);
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+      
+      console.log('Uploading to Cloudinary:', {
+        url: uploadUrl,
+        cloudName: CLOUDINARY_CLOUD_NAME,
+        apiKeyLength: CLOUDINARY_API_KEY.length,
+        fileSize: file.size,
+        fileType: file.type
       });
 
-      uploadStream.end(fileBuffer);
-    });
+      const authHeader = Buffer.from(`${CLOUDINARY_API_KEY}:${CLOUDINARY_API_SECRET}`).toString('base64');
 
-    const fileUrl = uploadResult.secure_url;
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: params,
+        headers: {
+          'Authorization': `Basic ${authHeader}`
+        }
+      });
 
-    // Update profile with new picture URL from Cloudinary
-    const updatedProfile = await Profile.findOneAndUpdate(
-      { user: user._id },
-      { profilePicture: fileUrl },
-      { upsert: true, new: true }
-    );
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        console.error('Cloudinary upload failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseText.substring(0, 500)
+        });
+        throw new Error(`Cloudinary returned ${response.status}: ${response.statusText}`);
+      }
 
-    return NextResponse.json({ 
-      message: 'Profile picture uploaded successfully',
-      fileUrl: fileUrl
-    });
+      let uploadResult;
+      try {
+        uploadResult = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse Cloudinary response:', responseText.substring(0, 500));
+        throw new Error('Invalid response from Cloudinary');
+      }
+
+      const fileUrl = uploadResult.secure_url;
+
+      // Update profile with new picture URL from Cloudinary
+      const updatedProfile = await Profile.findOneAndUpdate(
+        { user: user._id },
+        { profilePicture: fileUrl },
+        { upsert: true, new: true }
+      );
+
+      return NextResponse.json({ 
+        message: 'Profile picture uploaded successfully',
+        fileUrl: fileUrl
+      });
+    } catch (uploadError) {
+      console.error('Cloudinary upload error:', uploadError);
+      return NextResponse.json({ 
+        message: 'Failed to upload image to Cloudinary', 
+        error: uploadError.message 
+      }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('Profile picture upload error:', error);
