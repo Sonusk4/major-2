@@ -43,21 +43,26 @@ export default function ResumeAnalyzerPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.profile?.parsedResumeText) {
-          setResumeText(data.profile.parsedResumeText);
+          const resumeContent = data.profile.parsedResumeText;
+          setResumeText(resumeContent);
           setError('');
-          setSuccessMessage('✅ Resume content loaded successfully from your profile!');
-          // Clear success message after 3 seconds
-          setTimeout(() => setSuccessMessage(''), 3000);
+          setSuccessMessage(`✅ Resume content loaded successfully! (${resumeContent.length} characters)`);
+          // Clear success message after 4 seconds
+          setTimeout(() => setSuccessMessage(''), 4000);
+          
+          // Log for debugging
+          console.log('Resume text loaded:', resumeContent.substring(0, 100) + '...');
         } else {
           setError('No parsed resume found. Please upload a resume in your profile first.');
           setSuccessMessage('');
+          setResumeText('');
         }
       } else {
         setError('Failed to load profile data');
         setSuccessMessage('');
       }
     } catch (err) {
-      setError('An error occurred while loading your resume');
+      setError('An error occurred while loading your resume: ' + err.message);
       setSuccessMessage('');
     }
   };
@@ -134,8 +139,7 @@ export default function ResumeAnalyzerPage() {
                 value={resumeText}
                 onChange={(e) => setResumeText(e.target.value)}
                 placeholder="Paste your complete resume text here... Include your skills, experience, education, and projects. Or click 'Auto-Populate from Profile' to use your uploaded resume."
-                className="w-full h-64 px-4 py-3 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-[#ffffff] caret-white bg-neutral-900/80 placeholder-slate-300 selection:bg-sky-500/30 selection:text-white"
-                style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
+                className="w-full h-64 px-4 py-3 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-white bg-neutral-900/80 placeholder-slate-300 selection:bg-sky-500/30 selection:text-white font-mono text-sm leading-relaxed"
               />
               <p className="text-xs text-slate-400 mt-2">
                 💡 Tip: If you&apos;ve uploaded a resume in your profile, click &quot;Auto-Populate from Profile&quot; to automatically fill this field.
