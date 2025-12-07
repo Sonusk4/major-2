@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import Profile from '@/models/Profile';
 import jwt from 'jsonwebtoken';
-import PdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
@@ -54,7 +53,9 @@ export async function POST(request) {
     let parsedText = `PDF Resume uploaded successfully. Please use the Resume Analyzer to paste your resume content for analysis, or manually enter your information in your profile.`;
     
     try {
-      const pdfData = await PdfParse(Buffer.from(fileBuffer));
+      // Dynamic import to avoid module loading issues
+      const pdfParse = (await import('pdf-parse')).default;
+      const pdfData = await pdfParse(Buffer.from(fileBuffer));
       if (pdfData.text && pdfData.text.trim().length > 0) {
         parsedText = pdfData.text;
         console.log('PDF parsed successfully, text length:', parsedText.length);
