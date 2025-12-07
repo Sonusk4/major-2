@@ -4,10 +4,6 @@ import { dbConnect } from '@/lib/dbConnect';
 import User from '@/models/User';
 import Profile from '@/models/Profile';
 
-const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
-
 export async function POST(request) {
   try {
     await dbConnect();
@@ -44,46 +40,27 @@ export async function POST(request) {
       return NextResponse.json({ message: 'File size must be less than 5MB' }, { status: 400 });
     }
 
-    // Verify Cloudinary is configured
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-      console.error('Cloudinary configuration missing:', {
-        cloudName: CLOUDINARY_CLOUD_NAME ? 'present' : 'missing',
-        apiKey: CLOUDINARY_API_KEY ? 'present' : 'missing',
-        apiSecret: CLOUDINARY_API_SECRET ? 'present' : 'missing'
-      });
-      return NextResponse.json({ 
-        message: 'Cloudinary not properly configured'
-      }, { status: 500 });
-    }
-
-    // Upload to Cloudinary via REST API
+    // Upload to Cloudinary using FormData (native approach)
     try {
       const buffer = await file.arrayBuffer();
-      const base64String = Buffer.from(buffer).toString('base64');
-      
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+      const cloudinaryFormData = new FormData();
+      cloudinaryFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
+      cloudinaryFormData.append('upload_preset', 'career_hub_unsigned'); // Use unsigned upload
+      cloudinaryFormData.append('folder', 'career-hub/profile-pictures');
+      cloudinaryFormData.append('public_id', `profile-${user._id.toString()}`);
+
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`;
       
       console.log('Uploading to Cloudinary:', {
         url: uploadUrl,
-        cloudName: CLOUDINARY_CLOUD_NAME,
-        apiKeyLength: CLOUDINARY_API_KEY.length,
+        preset: 'career_hub_unsigned',
         fileSize: file.size,
         fileType: file.type
       });
 
-      // Build request body with all fields
-      const body = new URLSearchParams();
-      body.append('file', `data:${file.type};base64,${base64String}`);
-      body.append('folder', 'career-hub/profile-pictures');
-      body.append('public_id', `profile-${user._id}-${Date.now()}`);
-      body.append('api_key', CLOUDINARY_API_KEY);
-
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        body: body.toString(),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        body: cloudinaryFormData
       });
 
       const responseText = await response.text();
@@ -103,7 +80,7 @@ export async function POST(request) {
         uploadResult = JSON.parse(responseText);
       } catch (e) {
         console.error('Failed to parse Cloudinary response:', responseText.substring(0, 500));
-        throw new Error('Invalid response from Cloudinary');
+        throw new Error('Invalid JSON response from Cloudinary');
       }
 
       if (!uploadResult.secure_url) {
@@ -112,8 +89,9 @@ export async function POST(request) {
       }
 
       const fileUrl = uploadResult.secure_url;
+      console.log('Upload successful:', fileUrl);
 
-      // Update profile with new picture URL from Cloudinary
+      // Update profile with new picture URL
       const updatedProfile = await Profile.findOneAndUpdate(
         { user: user._id },
         { profilePicture: fileUrl },
