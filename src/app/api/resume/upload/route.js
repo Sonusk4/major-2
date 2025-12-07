@@ -65,7 +65,6 @@ export async function POST(request) {
       cloudinaryFormData.append('public_id', `resume-${userData.id}-${Date.now()}`);
       cloudinaryFormData.append('resource_type', 'raw');
       cloudinaryFormData.append('type', 'upload');
-      cloudinaryFormData.append('access_control', JSON.stringify([{ access_type: 'public' }]));
 
       const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
       
@@ -106,7 +105,6 @@ export async function POST(request) {
         cloudinaryFormData.append('public_id', `resume-${userData.id}-${Date.now()}`);
         cloudinaryFormData.append('resource_type', 'raw');
         cloudinaryFormData.append('type', 'upload');
-        cloudinaryFormData.append('access_control', JSON.stringify([{ access_type: 'public' }]));
         cloudinaryFormData.append('api_key', CLOUDINARY_API_KEY);
         
         // Add timestamp for signed upload

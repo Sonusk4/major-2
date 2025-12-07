@@ -56,8 +56,7 @@ export async function POST(request) {
       cloudinaryFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
       cloudinaryFormData.append('upload_preset', 'career_hub_unsigned');
       cloudinaryFormData.append('folder', 'career-hub/profile-pictures');
-      cloudinaryFormData.append('public_id', `profile-${user._id.toString()}`);
-      cloudinaryFormData.append('access_control', JSON.stringify([{ access_type: 'public' }]));        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+      cloudinaryFormData.append('public_id', `profile-${user._id.toString()}`);        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
         
         console.log('Attempting unsigned upload...');
 
@@ -98,7 +97,6 @@ export async function POST(request) {
         cloudinaryFormData.append('folder', 'career-hub/profile-pictures');
         cloudinaryFormData.append('public_id', `profile-${user._id.toString()}`);
         cloudinaryFormData.append('api_key', CLOUDINARY_API_KEY);
-        cloudinaryFormData.append('access_control', JSON.stringify([{ access_type: 'public' }]));
         
         // Add timestamp for signed upload
         const timestamp = Math.floor(Date.now() / 1000);
