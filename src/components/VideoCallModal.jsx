@@ -7,7 +7,7 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [peer, setPeer] = useState(null);
-  const [callStatus, setCallStatus] = useState('initializing'); // initializing, connected, ended
+  const [callStatus, setCallStatus] = useState('initializing'); // initializing, ringing, waiting, connecting, connected, ended
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -104,6 +104,7 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
       console.log('Processing remote signal');
       peer.signal(signalData);
       setRemoteSignalData('');
+      setCallStatus('connecting'); // Update status when signal is processed
     } catch (error) {
       console.error('Invalid signal data:', error);
       alert('Invalid signal data. Make sure you copied the complete signal.');
@@ -353,7 +354,9 @@ export default function VideoCallModal({ mentorshipId, onClose, currentUserId, o
         {/* Status */}
         <div className="bg-neutral-800 px-4 py-2 text-center text-sm text-gray-300">
           {callStatus === 'connected' && '✅ Connected'}
+          {callStatus === 'connecting' && '⏳ Signals exchanged, connecting...'}
           {callStatus === 'initializing' && '⏳ Initializing...'}
+          {(callStatus === 'ringing' || callStatus === 'waiting') && '⏳ Waiting for signal exchange...'}
           {callStatus === 'ended' && '❌ Call Ended'}
         </div>
       </div>
