@@ -51,12 +51,14 @@ export async function POST(request) {
     // Method 1: Try unsigned upload (requires preset to exist)
     if (true) {
       try {
-      const buffer = await file.arrayBuffer();
-      const cloudinaryFormData = new FormData();
-      cloudinaryFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
-      cloudinaryFormData.append('upload_preset', 'career_hub_unsigned');
-      cloudinaryFormData.append('folder', 'career-hub/profile-pictures');
-      cloudinaryFormData.append('public_id', `profile-${user._id.toString()}`);        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+        const buffer = await file.arrayBuffer();
+        const cloudinaryFormData = new FormData();
+        cloudinaryFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
+        cloudinaryFormData.append('upload_preset', 'career_hub_unsigned');
+        cloudinaryFormData.append('folder', 'career-hub/profile-pictures');
+        cloudinaryFormData.append('public_id', `profile-${user._id.toString()}`);
+
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
         
         console.log('Attempting unsigned upload...');
 
