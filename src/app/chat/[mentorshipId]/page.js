@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import VideoCallModal from '@/components/VideoCallModal';
+import ZegoVideoCall from '@/components/ZegoVideoCall';
 
 export default function ChatPage() {
   const routeParams = useParams();
@@ -306,11 +306,10 @@ export default function ChatPage() {
       </div>
       
       {showVideoCall && currentUserId && otherUserId && callInitiator && (
-        <VideoCallModal
+        <ZegoVideoCall
           mentorshipId={mentorshipId}
           currentUserId={currentUserId}
           otherUserId={otherUserId}
-          isInitiator={callInitiator === currentUserId}
           onClose={() => setShowVideoCall(false)}
         />
       )}
