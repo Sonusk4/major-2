@@ -85,15 +85,15 @@ async function generateInitialQuestion(resumeText, targetRole) {
     }
     return String(data?.message || '').trim() || 'Tell me about a project you are most proud of and why.';
   } catch (geminiErr) {
-    console.error('Gemini failed, trying OpenAI:', geminiErr?.message);
+    console.error('Gemini failed, trying OpenRouter:', geminiErr?.message);
     try {
-      return await generateInitialQuestionWithOpenAI(resumeText, targetRole);
-    } catch (openaiErr) {
-      console.error('OpenAI failed, trying OpenRouter:', openaiErr?.message);
+      return await generateInitialQuestionWithOpenRouter(resumeText, targetRole);
+    } catch (openRouterErr) {
+      console.error('OpenRouter failed, trying OpenAI:', openRouterErr?.message);
       try {
-        return await generateInitialQuestionWithOpenRouter(resumeText, targetRole);
-      } catch (openRouterErr) {
-        console.error('OpenRouter failed, using heuristic:', openRouterErr?.message);
+        return await generateInitialQuestionWithOpenAI(resumeText, targetRole);
+      } catch (openaiErr) {
+        console.error('All AI services failed, using heuristic:', openaiErr?.message);
         // ultimate fallback
         const skills = extractSkillsFromResume(resumeText);
         const projects = extractProjectsFromResume(resumeText);
@@ -166,7 +166,9 @@ async function generateInitialQuestionWithOpenRouter(resumeText, targetRole) {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://careerhub.com',
+      'X-Title': 'CareerHub'
     },
     body: JSON.stringify({
       model: modelId,
@@ -175,6 +177,8 @@ async function generateInitialQuestionWithOpenRouter(resumeText, targetRole) {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenRouter response error:', response.status, errorText);
     throw new Error(`OpenRouter API error: ${response.status}`);
   }
 

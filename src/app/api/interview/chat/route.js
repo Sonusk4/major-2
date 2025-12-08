@@ -137,7 +137,9 @@ Conversation: ${JSON.stringify(conversationHistory).slice(0, 5000)}`;
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://careerhub.com',
+        'X-Title': 'CareerHub'
       },
       body: JSON.stringify({
         model,
@@ -147,6 +149,8 @@ Conversation: ${JSON.stringify(conversationHistory).slice(0, 5000)}`;
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenRouter error:', response.status, errorText);
       throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
@@ -167,7 +171,9 @@ Conversation: ${JSON.stringify(conversationHistory).slice(0, 5000)}`;
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://careerhub.com',
+      'X-Title': 'CareerHub'
     },
     body: JSON.stringify({
       model,
@@ -177,6 +183,8 @@ Conversation: ${JSON.stringify(conversationHistory).slice(0, 5000)}`;
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenRouter error:', response.status, errorText);
     throw new Error(`OpenRouter API error: ${response.status}`);
   }
 
