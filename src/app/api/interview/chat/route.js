@@ -110,10 +110,89 @@ async function generateAvaResponse(resumeText, targetRole, conversationHistory, 
     const correctness = data?.evaluation?.correctness;
     const reason = data?.evaluation?.reason;
     const prefix = correctness ? `[${correctness.toUpperCase()}] ${reason ? reason + ' ' : ''}` : '';
-    return `${prefix}${msg || 'Let’s dive deeper. Can you provide more specifics?'}`;
+    return `${prefix}${msg || 'Let us dive deeper. Can you provide more specifics?'}`;
   } catch (err) {
     const conversationLength = conversationHistory.length;
     if (questionsAsked >= 10) return generateFallbackFinalFeedback(resumeText, targetRole, conversationHistory);
+    if (conversationLength <= 3) return generateTechnicalFollowUp(userMessage, resumeText, targetRole);
+    if (conversationLength <= 6) return generateMixedQuestion(userMessage, resumeText, targetRole);
+    return generateBehavioralQuestion(userMessage, resumeText, targetRole);
+  }
+}
+
+async function generateAvaResponseWithOpenRouter(resumeText, targetRole, conversationHistory, userMessage, questionsAsked) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const model = process.env.OPENROUTER_MODEL || 'amazon/nova-2-lite-v1:free';
+  const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+
+  // If 10 questions are done (assistant turns), return final feedback
+  if (questionsAsked >= 10) {
+    const feedbackPrompt = `You are AVA, a rigorous technical interviewer. The interview has completed after ${questionsAsked} questions.
+Provide concise final feedback on the candidate's performance for the "${targetRole}" role based on the resume and conversation.
+Return ONLY JSON: {"feedback": string, "score": number (0-100), "strengths": string[], "improvements": string[]}
+Resume: ${resumeText}
+Conversation: ${JSON.stringify(conversationHistory).slice(0, 5000)}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: feedbackPrompt }],
+        temperature: 0.7
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content || '';
+    try {
+      const parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim());
+      return `FINAL FEEDBACK: ${parsed.feedback} (Score: ${parsed.score}/100)`;
+    } catch (_) {
+      return `Interview complete. Feedback: ${text}`;
+    }
+  }
+
+  const system = `You are AVA, a rigorous technical interviewer. Evaluate the candidate's last answer briefly and ask exactly one next question tailored to their resume and the target role. Be concise.`;
+  const prompt = `${system}\nTarget role: ${targetRole}\nResume: ${resumeText}\nConversation so far: ${JSON.stringify(conversationHistory).slice(0, 6000)}\nUser answer: ${userMessage}\nReturn ONLY JSON: {"message": string, "evaluation": {"correctness": "correct"|"partially_correct"|"incorrect", "reason": string}}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content || '';
+  
+  try {
+    const parsed = JSON.parse(String(text).replace(/```json|```/g, '').trim());
+    const msg = String(parsed?.message || '').trim();
+    const correctness = parsed?.evaluation?.correctness;
+    const reason = parsed?.evaluation?.reason;
+    const prefix = correctness ? `[${correctness.toUpperCase()}] ${reason ? reason + ' ' : ''}` : '';
+    return `${prefix}${msg || 'Let us dive deeper. Can you provide more specifics?'}`;
+  } catch (_) {
+    // Fallback to heuristic
+    const conversationLength = conversationHistory.length;
     if (conversationLength <= 3) return generateTechnicalFollowUp(userMessage, resumeText, targetRole);
     if (conversationLength <= 6) return generateMixedQuestion(userMessage, resumeText, targetRole);
     return generateBehavioralQuestion(userMessage, resumeText, targetRole);
