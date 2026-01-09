@@ -96,14 +96,38 @@ export default function PublicProfilePage() {
                 {isCofounderView && (
                   <div className="flex items-center gap-3">
                     {profile.resumePDF && (
-                      <a
-                        className="inline-block px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 shadow-[0_0_16px_rgba(168,85,247,0.35)] hover:shadow-[0_0_24px_rgba(219,39,119,0.45)]"
-                        href={profile.resumePDF}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('token');
+                            const res = await fetch(`/api/resume/view-developer-resume?developerId=${params.id}`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+
+                            if (!res.ok) {
+                              const errorData = await res.json().catch(() => ({}));
+                              alert(errorData.message || 'Failed to view resume');
+                              return;
+                            }
+
+                            const blob = await res.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = blobUrl;
+                            link.download = `${profile.fullName}-resume.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                          } catch (error) {
+                            console.error('Error viewing resume:', error);
+                            alert('Failed to view resume. Please try again.');
+                          }
+                        }}
+                        className="inline-block px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 shadow-[0_0_16px_rgba(168,85,247,0.35)] hover:shadow-[0_0_24px_rgba(219,39,119,0.45)] cursor-pointer"
                       >
                         View PDF Resume
-                      </a>
+                      </button>
                     )}
                     <button
                       disabled={!projectId || analyzing}
@@ -113,7 +137,12 @@ export default function PublicProfilePage() {
                         setAnalysis(null);
                         try {
                           const token = localStorage.getItem('token');
-                          const res = await fetch(`/api/ai/analyze-user/${projectId}/${params.id}`, {
+                          // Use cofounder-analyze endpoint for cofounders
+                          const endpoint = viewerRole === 'cofounder' 
+                            ? `/api/ai/cofounder-analyze/${projectId}/${params.id}`
+                            : `/api/ai/analyze-user/${projectId}/${params.id}`;
+                          
+                          const res = await fetch(endpoint, {
                             headers: { Authorization: `Bearer ${token}` }
                           });
                           const data = await res.json();
@@ -296,6 +325,38 @@ export default function PublicProfilePage() {
                     <div className="flex flex-wrap gap-2">
                       {analysis.missingKeywords.map((k, i) => (
                         <span key={i} className="px-2 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-500/30 text-xs">{k}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Array.isArray(analysis.whyGood) && analysis.whyGood.length > 0 && (
+                  <div>
+                    <div className="font-semibold mb-2 text-green-400">✓ Why Good For This Post</div>
+                    <div className="space-y-2">
+                      {analysis.whyGood.map((item, i) => (
+                        <div key={i} className="p-3 rounded-lg bg-green-500/10 border border-green-500/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-green-300">{item.skill}</span>
+                            <span className="text-sm font-bold text-green-400">{item.percentage}%</span>
+                          </div>
+                          <p className="text-xs text-slate-300">{item.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Array.isArray(analysis.whyNotGood) && analysis.whyNotGood.length > 0 && (
+                  <div>
+                    <div className="font-semibold mb-2 text-amber-400">⚠ What's Missing/Gaps</div>
+                    <div className="space-y-2">
+                      {analysis.whyNotGood.map((item, i) => (
+                        <div key={i} className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-amber-300">{item.skill}</span>
+                            <span className="text-sm font-bold text-amber-400">{item.percentage}% Gap</span>
+                          </div>
+                          <p className="text-xs text-slate-300">{item.reason}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
