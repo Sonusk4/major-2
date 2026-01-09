@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 
 export default function ChatPage() {
@@ -146,6 +147,11 @@ export default function ChatPage() {
     <div className="min-h-screen bg-neutral-950">
       <Navbar />
       <div className="max-w-3xl mx-auto px-6 py-6">
+        {/* Back Button */}
+        <Link href="/developer-dashboard" className="text-cyan-400 hover:text-cyan-300 mb-4 inline-flex items-center gap-2 w-fit">
+          <span>←</span> Back to Dashboard
+        </Link>
+
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-slate-100">Mentorship Chat</h1>
           {unreadCount > 0 && (

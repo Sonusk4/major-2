@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function PostProjectPage() {
   const [title, setTitle] = useState('');
@@ -56,6 +57,11 @@ export default function PostProjectPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
       <div className="max-w-4xl mx-auto px-6 py-10">
+        {/* Back Button */}
+        <Link href="/dashboard" className="text-amber-400 hover:text-amber-300 mb-4 inline-flex items-center gap-2 w-fit">
+          <span>←</span> Back to Dashboard
+        </Link>
+
         <div className="relative rounded-xl border border-neutral-800 bg-neutral-900/70 backdrop-blur p-8 shadow-[0_0_28px_rgba(245,158,11,0.2)] transition-all duration-300 hover:border-amber-500/50 hover:shadow-[0_0_40px_rgba(245,158,11,0.35)]">
           <div className="pointer-events-none absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity bg-[radial-gradient(600px_300px_at_0%_0%,rgba(245,158,11,0.14),transparent_60%),radial-gradient(600px_300px_at_100%_100%,rgba(56,189,248,0.14),transparent_60%)]" />
           <h1 className="text-3xl font-extrabold text-white mb-6 drop-shadow-[0_0_16px_rgba(245,158,11,0.35)]">Post a New Project</h1>

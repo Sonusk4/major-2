@@ -167,9 +167,57 @@ export default function ProjectDetailsPage() {
 
   if (!project) return <p className="text-center mt-10">Project not found.</p>;
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    window.location.href = '/';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
+      {/* Navbar */}
+      <nav className="bg-neutral-950/80 backdrop-blur border-b border-neutral-800 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
+            <Link href="/projects" className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity">
+              CareerHub
+            </Link>
+
+            {/* Nav Links */}
+            <div className="hidden md:flex items-center gap-6">
+              <Link href="/projects" className="text-slate-300 hover:text-white transition-colors font-medium border-b-2 border-sky-500">
+                Projects
+              </Link>
+              <Link href="/my-applications" className="text-slate-300 hover:text-white transition-colors">
+                My Applications
+              </Link>
+              <Link href="/profile" className="text-slate-300 hover:text-white transition-colors">
+                My Profile
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <button className="text-slate-300 hover:text-white">
+                <i className="fas fa-bars text-xl"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Back Button */}
+        <Link href="/projects" className="text-sky-400 hover:text-sky-300 mb-6 inline-flex items-center gap-2">
+          <span>←</span> Back to Projects
+        </Link>
+
       <div className="relative p-8 rounded-2xl border border-neutral-800 bg-neutral-950/60 backdrop-blur shadow-[0_0_0_1px_rgba(32,32,40,0.8)]">
         <div className="absolute inset-0 -z-10 rounded-2xl bg-[radial-gradient(800px_400px_at_-10%_-10%,rgba(56,189,248,0.12),transparent_60%),radial-gradient(600px_300px_at_120%_-10%,rgba(168,85,247,0.12),transparent_60%)]" />
         
@@ -262,16 +310,18 @@ export default function ProjectDetailsPage() {
           <h3 className="text-xl font-semibold text-white">Ready to stand out?</h3>
           <p className="text-slate-300 mt-2 mb-4">
             {userRole === 'developer' 
-              ? "See how your resume compares to this project's requirements with our advanced AI analysis."
+              ? "See how your skills compare to this project's requirements with our advanced AI analysis."
               : "Help developers understand how well they match your project requirements."
             }
           </p>
-          <Link 
-            href={`/analyzer/${project._id}`} 
-            className="inline-block px-8 py-3 font-semibold text-white rounded-lg bg-gradient-to-r from-sky-500 to-violet-600 hover:from-sky-400 hover:to-violet-500 transition-all shadow-[0_0_20px_-6px_rgba(56,189,248,0.6)]"
-          >
-            {userRole === 'developer' ? 'Run AI Resume Analysis' : 'View AI Analysis'}
-          </Link>
+          {userRole === 'developer' && (
+            <Link 
+              href={`/skill-match/${project._id}`} 
+              className="inline-block px-8 py-3 font-semibold text-white rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 transition-all shadow-[0_0_20px_-6px_rgba(16,185,129,0.6)]"
+            >
+              View Skill Match Analysis
+            </Link>
+          )}
         </div>
       </div>
       </div>

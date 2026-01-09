@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import Navbar from '@/components/Navbar';
 
@@ -458,6 +459,11 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-slate-900 to-violet-950">
       <Navbar />
       <div className="max-w-4xl mx-auto px-6 py-10">
+        {/* Back Button */}
+        <Link href="/dashboard" className="text-sky-400 hover:text-sky-300 mb-6 inline-flex items-center gap-2">
+          <span>←</span> Back to Dashboard
+        </Link>
+
         <h1 className="text-3xl font-extrabold text-slate-100 mb-8 text-center drop-shadow-[0_0_16px_rgba(139,92,246,0.35)]">
           Your Developer Profile
         </h1>

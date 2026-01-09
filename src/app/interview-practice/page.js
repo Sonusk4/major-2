@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 
 export default function InterviewPracticePage() {
@@ -119,6 +120,11 @@ export default function InterviewPracticePage() {
     <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-slate-900 to-cyan-950">
       <Navbar />
       <div className="max-w-4xl mx-auto px-6 py-10">
+        {/* Back Button */}
+        <Link href="/developer-dashboard" className="text-cyan-400 hover:text-cyan-300 mb-4 inline-flex items-center gap-2 w-fit">
+          <span>←</span> Back to Developer Dashboard
+        </Link>
+
         <div className="relative rounded-xl border border-neutral-800 bg-neutral-900/70 backdrop-blur p-8 transition-all duration-300 hover:border-cyan-500/50 hover:shadow-[0_0_42px_rgba(34,211,238,0.45)] shadow-[0_0_28px_rgba(34,211,238,0.25)]">
           <div className="pointer-events-none absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity bg-[radial-gradient(640px_320px_at_-10%_-10%,rgba(34,211,238,0.18),transparent_60%),radial-gradient(520px_260px_at_110%_110%,rgba(168,85,247,0.18),transparent_60%)]" />
           <div className="text-center mb-8">

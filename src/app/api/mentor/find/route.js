@@ -37,6 +37,29 @@ function jaccardOverlap(a = [], b = []) {
   return union === 0 ? 0 : inter / union;
 }
 
+// Helper: Call OpenRouter API
+async function callOpenRouter(prompt) {
+  try {
+    const response = await fetch(process.env.OPENROUTER_API_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL || 'amazon/nova-2-lite-v1:free',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content || null;
+  } catch (_e) {
+    return null;
+  }
+}
+
 export async function POST(request) {
   await dbConnect();
   try {
@@ -55,33 +78,56 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Profile not found for mentee' }, { status: 404 });
     }
 
-    // Step 1: Ask Gemini to derive matching preferences from mentee's profile
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    // Step 1: Ask Gemini (or OpenRouter) to derive matching preferences from mentee's profile
+    const geminiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
     let derived = {
       requiredSkills: [],
       preferSameCollege: true,
       preferSameDistrict: true,
       minExperienceYears: 1
     };
-    if (apiKey) {
+    
+    if (geminiKey || openRouterKey) {
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         const menteeSummary = `FullName: ${menteeProfile.fullName || ''}\nHeadline: ${menteeProfile.headline || ''}\nBio: ${menteeProfile.bio || ''}\nSkills: ${(Array.isArray(menteeProfile.skills) ? menteeProfile.skills : []).join(', ')}\nState: ${menteeProfile.state || menteeProfile.address?.state || ''}\nDistrict: ${menteeProfile.district || menteeProfile.address?.city || ''}\nCollege: ${menteeProfile.college || ''}`;
         const prompt = `From the following mentee profile, output JSON preferences for mentor matching. No prose, no markdown.
 Use strictly this JSON schema: {"requiredSkills":string[],"preferSameCollege":boolean,"preferSameDistrict":boolean,"minExperienceYears":number}
 Mentee Profile:\n${menteeSummary}`;
-        const r = await model.generateContent(prompt);
-        const txtFn = r?.response?.text; const txt = typeof txtFn === 'function' ? txtFn() : txtFn;
-        const cleaned = String(txt || '').replace(/```json|```/gi, '').trim();
-        const s = cleaned.indexOf('{'); const e = cleaned.lastIndexOf('}');
-        if (s !== -1 && e !== -1 && e > s) {
-          const parsed = JSON.parse(cleaned.slice(s, e + 1));
-          if (parsed && typeof parsed === 'object') {
-            derived.requiredSkills = Array.isArray(parsed.requiredSkills) ? parsed.requiredSkills.filter(Boolean) : [];
-            derived.preferSameCollege = typeof parsed.preferSameCollege === 'boolean' ? parsed.preferSameCollege : derived.preferSameCollege;
-            derived.preferSameDistrict = typeof parsed.preferSameDistrict === 'boolean' ? parsed.preferSameDistrict : derived.preferSameDistrict;
-            const minYr = Number(parsed.minExperienceYears); derived.minExperienceYears = Number.isFinite(minYr) ? Math.max(1, Math.floor(minYr)) : 1;
+        
+        let txt = null;
+        
+        // Try Gemini first
+        if (geminiKey) {
+          try {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            const r = await model.generateContent(prompt);
+            const txtFn = r?.response?.text;
+            txt = typeof txtFn === 'function' ? txtFn() : txtFn;
+          } catch (_e) {
+            console.log('Gemini failed, trying OpenRouter...');
+          }
+        }
+        
+        // Fallback to OpenRouter if Gemini failed
+        if (!txt && openRouterKey) {
+          txt = await callOpenRouter(prompt);
+        }
+        
+        if (txt) {
+          const cleaned = String(txt || '').replace(/```json|```/gi, '').trim();
+          const s = cleaned.indexOf('{');
+          const e = cleaned.lastIndexOf('}');
+          if (s !== -1 && e !== -1 && e > s) {
+            const parsed = JSON.parse(cleaned.slice(s, e + 1));
+            if (parsed && typeof parsed === 'object') {
+              derived.requiredSkills = Array.isArray(parsed.requiredSkills) ? parsed.requiredSkills.filter(Boolean) : [];
+              derived.preferSameCollege = typeof parsed.preferSameCollege === 'boolean' ? parsed.preferSameCollege : derived.preferSameCollege;
+              derived.preferSameDistrict = typeof parsed.preferSameDistrict === 'boolean' ? parsed.preferSameDistrict : derived.preferSameDistrict;
+              const minYr = Number(parsed.minExperienceYears);
+              derived.minExperienceYears = Number.isFinite(minYr) ? Math.max(1, Math.floor(minYr)) : 1;
+            }
           }
         }
       } catch (_e) {
@@ -137,11 +183,9 @@ Mentee Profile:\n${menteeSummary}`;
       return { profile: p, locTier, overlap, deterministicScore, aiScore: null };
     });
 
-    // If Gemini key exists, refine scores with AI based on skills/summary
-    if (apiKey) {
+    // If Gemini or OpenRouter key exists, refine scores with AI based on skills/summary
+    if (geminiKey || openRouterKey) {
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         const menteeSummary = `Skills: ${(menteeSkills || []).join(', ')}`;
         for (let i = 0; i < scored.length; i++) {
           const m = scored[i];
@@ -151,17 +195,38 @@ Return JUST a number.
 Mentee: ${menteeSummary}
 Mentor: ${mentorSummary}`;
           try {
-            const result = await model.generateContent(prompt);
-            const txtFn = result?.response?.text;
-            const txt = typeof txtFn === 'function' ? txtFn() : txtFn;
-            const num = Number(String(txt).match(/\d+/)?.[0] || '0');
-            m.aiScore = Math.max(0, Math.min(100, num));
+            let txt = null;
+            
+            // Try Gemini first
+            if (geminiKey) {
+              try {
+                const genAI = new GoogleGenerativeAI(geminiKey);
+                const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+                const result = await model.generateContent(prompt);
+                const txtFn = result?.response?.text;
+                txt = typeof txtFn === 'function' ? txtFn() : txtFn;
+              } catch (_geminiErr) {
+                console.log(`Gemini failed for mentor ${i}, trying OpenRouter...`);
+              }
+            }
+            
+            // Fallback to OpenRouter if Gemini failed
+            if (!txt && openRouterKey) {
+              txt = await callOpenRouter(prompt);
+            }
+            
+            if (txt) {
+              const num = Number(String(txt).match(/\d+/)?.[0] || '0');
+              m.aiScore = Math.max(0, Math.min(100, num));
+            } else {
+              m.aiScore = null;
+            }
           } catch (_e) {
             m.aiScore = null;
           }
         }
       } catch (_e) {
-        // ignore AI errors entirely
+        // ignore outer AI errors entirely
       }
     }
 

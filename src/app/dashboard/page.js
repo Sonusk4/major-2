@@ -2,21 +2,38 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedProjectId, setExpandedProjectId] = useState(null);
   const [updatingAppId, setUpdatingAppId] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      setIsAuthenticated(true);
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+
     const fetchMyProjects = async () => {
-      setLoading(true);
       const token = localStorage.getItem('token');
       if (!token) {
-        setError("You must be logged in to view this page.");
+        setError("Session expired. Please log in again.");
         setLoading(false);
+        router.push('/login');
         return;
       }
 
@@ -28,6 +45,11 @@ export default function DashboardPage() {
         if (res.ok) {
           const data = await res.json();
           setProjects(data.projects || []);
+          setError('');
+        } else if (res.status === 401) {
+          localStorage.removeItem('token');
+          setError("Session expired. Please log in again.");
+          router.push('/login');
         } else {
           const data = await res.json();
           setError(data.message || "Failed to load projects.");
@@ -38,8 +60,9 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
+    
     fetchMyProjects();
-  }, []);
+  }, [isAuthenticated, router]);
 
   const toggleApplicants = (projectId) => {
     setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
@@ -94,6 +117,18 @@ export default function DashboardPage() {
   
   const totalProjects = projects.length;
   const totalApplicants = projects.reduce((sum, project) => sum + (project.applications?.length || 0), 0);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-slate-900 to-purple-950 flex flex-col items-center justify-center">
+        <h1 className="text-3xl font-bold text-slate-100 mb-4">Access Denied</h1>
+        <p className="text-slate-300 mb-6">You must be logged in to view this page.</p>
+        <Link href="/login" className="px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors">
+          Go to Login
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) return <p className="text-center mt-10 text-slate-200">Loading dashboard...</p>;
   if (error) return <p className="text-center mt-10 text-rose-400">{error}</p>;

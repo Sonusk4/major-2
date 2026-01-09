@@ -157,90 +157,58 @@ export async function GET(request, { params }) {
 
     console.log('User ID:', userData.id);
     console.log('Profile found:', !!profile);
-    console.log('Profile data:', profile);
     console.log('Project found:', !!project);
 
     if (!profile) {
-      return NextResponse.json({ message: "Profile not found. Please upload a resume first." }, { status: 404 });
+      return NextResponse.json({ message: "Profile not found. Please complete your profile first." }, { status: 404 });
     }
-    // Build comprehensive resume text from profile data
-    let resumeText = (profile.parsedResumeText || '').trim();
-    
-    // If parsed text is missing or just placeholder, build rich synthetic resume
-    if (!resumeText || resumeText.includes('PDF uploaded') || resumeText.includes('manually enter')) {
-      const headline = (profile.headline || '').trim();
-      const bio = (profile.bio || '').trim();
-      const skills = Array.isArray(profile.skills) ? profile.skills : [];
-      const experience = Array.isArray(profile.experience) ? profile.experience : [];
-      const education = Array.isArray(profile.education) ? profile.education : [];
-      
-      // Build structured resume content
-      const sections = [];
-      
-      if (headline) sections.push(`PROFESSIONAL SUMMARY: ${headline}`);
-      if (bio) sections.push(`ABOUT: ${bio}`);
-      
-      if (skills.length > 0) {
-        sections.push(`TECHNICAL SKILLS: ${skills.join(', ')}`);
-      }
-      
-      if (experience.length > 0) {
-        sections.push('WORK EXPERIENCE:');
-        experience.forEach((exp, idx) => {
-          const title = exp.title || exp.position || 'Position';
-          const company = exp.company || 'Company';
-          const duration = exp.years || exp.duration || '';
-          const desc = exp.description || '';
-          sections.push(`${idx + 1}. ${title} at ${company}${duration ? ` (${duration})` : ''}${desc ? ` - ${desc}` : ''}`);
-        });
-      }
-      
-      if (education.length > 0) {
-        sections.push('EDUCATION:');
-        education.forEach((edu, idx) => {
-          const degree = edu.degree || 'Degree';
-          const field = edu.fieldOfStudy || edu.field || '';
-          const school = edu.school || edu.institution || 'Institution';
-          sections.push(`${idx + 1}. ${degree}${field ? ` in ${field}` : ''} from ${school}`);
-        });
-      }
-      
-      resumeText = sections.join('\n\n');
-    }
-    
-    // Ensure we have some content to analyze
-    if (!resumeText || resumeText.trim().length < 10) {
-      return NextResponse.json({
-        matchScore: 0,
-        assessmentTitle: "Profile Incomplete",
-        executiveSummary: "Please complete your profile with professional information, skills, and experience to enable analysis.",
-        strengths: [],
-        weaknesses: ["Profile information is incomplete or missing"],
-        missingKeywords: requiredSkills,
-        recommendedSkills: requiredSkills.slice(0, 5),
-        suggestedCourses: []
-      }, { status: 200 });
-    }
+
     if (!project) {
       return NextResponse.json({ message: "Project not found." }, { status: 404 });
     }
 
-    const requiredSkills = Array.isArray(project.requiredSkills) ? project.requiredSkills.filter(Boolean) : [];
+    // Get skills from user's profile
+    const userSkills = Array.isArray(profile.skills) ? profile.skills : [];
+    if (userSkills.length === 0) {
+      return NextResponse.json({
+        matchScore: 0,
+        assessmentTitle: "No Skills in Profile",
+        executiveSummary: "Please add skills to your profile to enable skill match analysis.",
+        strengths: [],
+        weaknesses: ["No skills found in your profile"],
+        missingKeywords: project.requiredSkills || [],
+        recommendedSkills: (project.requiredSkills || []).slice(0, 5),
+        suggestedCourses: []
+      }, { status: 200 });
+    }
 
-    // Heuristic baseline: compute overlap to avoid 0% when there are matches
-    const normalizedResume = String(resumeText).toLowerCase();
-    const tokenize = (s) => s.toLowerCase().replace(/[^a-z0-9+#.\-\s]/g, ' ').split(/\s+/).filter(Boolean);
-    const resumeTokens = new Set(tokenize(normalizedResume));
+    const requiredSkills = Array.isArray(project.requiredSkills) ? project.requiredSkills.filter(Boolean) : [];
+    if (requiredSkills.length === 0) {
+      return NextResponse.json({
+        matchScore: 100,
+        assessmentTitle: "No Requirements Specified",
+        executiveSummary: "This project has no specific skill requirements defined.",
+        strengths: userSkills,
+        weaknesses: [],
+        missingKeywords: [],
+        recommendedSkills: [],
+        suggestedCourses: []
+      }, { status: 200 });
+    }
+
+    // Normalize and match profile skills with required skills
     const normalizeSkill = (s) => String(s || '').toLowerCase().trim();
-    const normalizedSkills = requiredSkills.map(normalizeSkill);
-    // Synonym map to better match common variants
+    const userSkillsNorm = new Set(userSkills.map(normalizeSkill));
+    const requiredNorm = requiredSkills.map(normalizeSkill);
+    
+    // Synonym map for better matching
     const synonymMap = {
       'html': ['html', 'html5', 'hypertext markup language'],
       'css': ['css', 'css3', 'cascading style sheets', 'tailwind', 'bootstrap'],
       'javascript': ['javascript', 'js', 'es6', 'ecmascript'],
       'react': ['react', 'reactjs', 'next', 'nextjs'],
       'node': ['node', 'nodejs', 'express'],
-      'dbms': ['dbms', 'database', 'databases', 'database management system', 'rdbms', 'sql', 'mysql', 'postgres', 'mongodb'],
+      'dbms': ['dbms', 'database', 'databases', 'database management system', 'rdbms', 'sql', 'mysql', 'postgres', 'postgresql', 'mongodb'],
       'sql': ['sql', 'structured query language', 'mysql', 'postgres', 'postgresql', 'sqlite', 'mssql'],
       'python': ['python', 'py'],
       'java': ['java', 'jdk', 'jre', 'spring', 'springboot'],
@@ -250,44 +218,51 @@ export async function GET(request, { params }) {
       'deep learning': ['deep learning', 'dl'],
       'natural language processing': ['natural language processing', 'nlp']
     };
-    const hasTokenOrSynonym = (skill) => {
-      const base = normalizeSkill(skill);
-      const variants = new Set([base, ...(synonymMap[base] || [])]);
-      for (const v of variants) {
-        if (resumeTokens.has(v)) return true;
-        // also allow substring presence for terms like "database management"
-        if (normalizedResume.includes(v)) return true;
+
+    // Check if a required skill is present in user's skills
+    const hasSkillOrSynonym = (requiredSkill) => {
+      const base = normalizeSkill(requiredSkill);
+      if (userSkillsNorm.has(base)) return true;
+      
+      // Check synonyms
+      const variants = synonymMap[base] || [];
+      for (const variant of variants) {
+        if (userSkillsNorm.has(variant)) return true;
       }
-      // fallback: check each word of multi-word skill
-      const parts = base.split(/\s+|[,/]/).filter(Boolean);
-      if (parts.length > 1) {
-        const allPresent = parts.every(p => resumeTokens.has(p) || normalizedResume.includes(p));
-        if (allPresent) return true;
+      
+      // Check if any user skill includes or matches the required skill
+      for (const userSkill of userSkillsNorm) {
+        if (userSkill.includes(base) || base.includes(userSkill)) return true;
       }
+      
       return false;
     };
+
     const matchedSkills = [];
     const unmatchedSkills = [];
-    for (const sk of normalizedSkills) {
-      if (hasTokenOrSynonym(sk)) matchedSkills.push(sk); else unmatchedSkills.push(sk);
+    for (const req of requiredSkills) {
+      if (hasSkillOrSynonym(req)) {
+        matchedSkills.push(req);
+      } else {
+        unmatchedSkills.push(req);
+      }
     }
-    const unique = (arr) => Array.from(new Set(arr.map(normalizeSkill)));
-    const requiredMissing = unique(unmatchedSkills);
-    const heuristicScore = normalizedSkills.length > 0 ? Math.round((matchedSkills.length / normalizedSkills.length) * 100) : 0;
+
+    const heuristicScore = requiredNorm.length > 0 ? Math.round((matchedSkills.length / requiredSkills.length) * 100) : 0;
 
     const prompt = `
-      You are an evaluator. Use ONLY the project's Required Skills to assess the resume.
-      - Take the resume text from the profile below.
-      - Take the Required Skills from the project below.
-      - Compare case-insensitively; allow common synonyms (e.g., html/html5, css/css3, dbms/database/sql, c++/cpp).
-      - "missingKeywords" MUST contain ONLY items from Required Skills that are NOT present in the resume.
+      You are an expert recruiter analyzing a developer's profile skills against project requirements.
+      - User's Skills from profile: ${userSkills.join(', ')}
+      - Required Skills for project: ${requiredSkills.join(', ')}
+      - Compare case-insensitively; allow common synonyms (e.g., html/html5, css/css3, dbms/database/sql).
+      - "missingKeywords" MUST contain ONLY items from REQUIRED SKILLS that are NOT in user's profile skills.
       - Do NOT add any skills that are not in Required Skills. Do NOT repeat items.
       - Return ONLY JSON with the exact keys specified. No prose. No code fences.
 
       PROJECT TITLE: "${project.title}"
       JOB DESCRIPTION: "${project.description}"
       REQUIRED SKILLS (authoritative list): ${requiredSkills.join(', ')}
-      RESUME TEXT: "${resumeText}"
+      USER SKILLS (from profile): ${userSkills.join(', ')}
 
       JSON Shape:
       {
@@ -296,7 +271,7 @@ export async function GET(request, { params }) {
         "executiveSummary": "<2-3 sentence summary>",
         "strengths": ["<strength bullet>", "<strength bullet>"],
         "weaknesses": ["<improvement bullet>", "<improvement bullet>"],
-        "missingKeywords": ["<items from REQUIRED SKILLS absent from resume, no extras>"]
+        "missingKeywords": ["<items from REQUIRED SKILLS absent from user profile, no extras>"]
       }
     `;
 
@@ -317,11 +292,10 @@ export async function GET(request, { params }) {
         const jsonResponse = {
           matchScore: heuristicScore,
           assessmentTitle: "Analysis Available",
-          executiveSummary: "Heuristic analysis based on keyword overlap. Detailed AI analysis was unavailable.",
-          strengths: matchedSkills.length > 0 ? ["Some required skills found in resume"] : ["Could not confirm required skills"],
-          weaknesses: unmatchedSkills.length ? ["Missing or unclear skills present in requirements"] : ["None detected by heuristic"],
-          missingKeywords: unmatchedSkills,
-          matchedSkills
+          executiveSummary: `Heuristic analysis: You have ${matchedSkills.length} of ${requiredSkills.length} required skills.`,
+          strengths: matchedSkills.length > 0 ? matchedSkills : ["Skills comparison available"],
+          weaknesses: unmatchedSkills.length > 0 ? unmatchedSkills : ["None detected"],
+          missingKeywords: unmatchedSkills
         };
         // Enrich with recommended skills and courses similarly to the AI path
         try {
@@ -355,18 +329,18 @@ export async function GET(request, { params }) {
       jsonResponse = {
         matchScore: heuristicScore,
         assessmentTitle: "Analysis Available",
-        executiveSummary: "Heuristic analysis based on keyword overlap. Detailed AI analysis was unavailable.",
-        strengths: matchedSkills.length > 0 ? ["Some required skills found in resume"] : ["Could not confirm required skills"],
-        weaknesses: unmatchedSkills.length ? ["Missing or unclear skills present in requirements"] : ["None detected by heuristic"],
+        executiveSummary: `Heuristic analysis: You have ${matchedSkills.length} of ${requiredSkills.length} required skills.`,
+        strengths: matchedSkills.length > 0 ? matchedSkills : ["Skills comparison available"],
+        weaknesses: unmatchedSkills.length > 0 ? unmatchedSkills : ["None detected"],
         missingKeywords: unmatchedSkills
       };
     }
 
-    // Reconcile AI result with heuristic to avoid false 0% and false misses
+    // Reconcile AI result with heuristic to avoid false misses
     try {
       const aiMissing = Array.isArray(jsonResponse.missingKeywords) ? jsonResponse.missingKeywords.map(normalizeSkill) : [];
-      // Only consider required skills as missing; drop anything already present in resume
-      const filteredMissing = requiredMissing.filter(k => !hasTokenOrSynonym(k));
+      // Only consider required skills as missing that are actually not in user's profile
+      const filteredMissing = unmatchedSkills;
       const finalMissing = Array.from(new Set(filteredMissing));
       // Prefer deterministic overlap score; cap at 100
       const aiScore = typeof jsonResponse.matchScore === 'number' ? Math.min(100, Math.max(0, Math.round(jsonResponse.matchScore))) : 0;
