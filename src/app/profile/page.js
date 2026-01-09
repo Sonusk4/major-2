@@ -157,11 +157,13 @@ export default function ProfilePage() {
     try {
       const profileData = { 
         ...profile, 
-        skills: profile.skills ? profile.skills.split(',').map(skill => skill.trim()) : [],
+        skills: profile.skills ? profile.skills.split(',').map(skill => skill.trim()).filter(Boolean) : [],
         age: profile.age ? parseInt(profile.age) : undefined,
         totalExperienceYears: profile.totalExperienceYears ? Number(profile.totalExperienceYears) : 0,
       };
-      console.log('Submitting profile data:', profileData);
+      console.log('🔍 Submitting profile data:', profileData);
+      console.log('🔍 Skills array:', profileData.skills);
+      console.log('🔍 Skills type:', typeof profileData.skills);
       
       const res = await fetch('/api/profile', {
         method: 'POST',
@@ -169,6 +171,10 @@ export default function ProfilePage() {
         body: JSON.stringify(profileData),
       });
       const data = await res.json();
+      
+      console.log('✅ Response:', data);
+      console.log('✅ Saved skills:', data.profile?.skills);
+      
       setProfileMessage(data.message || 'Profile updated successfully!');
       
       // Refresh profile data after update
@@ -300,16 +306,15 @@ export default function ProfilePage() {
 
     try {
       console.log('Uploading resume file:', fileToUpload.name);
-      const res = await fetch('/api/resume/upload', {
+      const res = await fetch('/api/resume/mongodb-upload', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
       const data = await res.json();
-      setResumeMessage(data.message);
       
-      // Refresh profile data after resume upload
       if (res.ok) {
+        setResumeMessage('✅ ' + data.message);
         const refreshRes = await fetch('/api/profile', { headers: { 'Authorization': `Bearer ${token}` } });
         if (refreshRes.ok) {
           const refreshData = await refreshRes.json();
@@ -319,7 +324,17 @@ export default function ProfilePage() {
             resumePDF: refreshData.profile.resumePDF || ''
           }));
           setResumeFile(null);
+          
+          // Show additional message about parsed content
+          const parsedText = refreshData.profile.parsedResumeText || '';
+          if (parsedText && !parsedText.includes('PDF parsing failed') && parsedText.length > 50) {
+            setTimeout(() => {
+              setResumeMessage('✅ Resume uploaded and parsed successfully! Your resume content will be automatically available in the Resume Analyzer.');
+            }, 500);
+          }
         }
+      } else {
+        setResumeMessage('❌ ' + (data.message || 'Failed to upload resume'));
       }
     } catch (error) {
       console.error('Error uploading resume:', error);
@@ -338,35 +353,50 @@ export default function ProfilePage() {
 
     setDownloadLoading(true);
     try {
-      const res = await fetch('/api/resume/download', {
+      // Get the PDF from MongoDB via backend
+      const res = await fetch('/api/resume/mongodb-download', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.pdfUrl) {
-          // Direct fetch and download the PDF file
-          const pdfResponse = await fetch(data.pdfUrl);
-          const blob = await pdfResponse.blob();
-          
-          // Create blob URL and trigger download
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          link.download = `resume-${Date.now()}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          // Clean up blob URL
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      if (!res.ok) {
+        let errorMessage = 'Failed to download resume. Please try again.';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          console.warn('Could not parse error response');
         }
-      } else {
-        alert('Failed to download resume. Please try again.');
+        console.error('Download failed:', res.status, errorMessage);
+        alert(errorMessage);
+        return;
       }
+
+      // Get the PDF blob
+      const blob = await res.blob();
+      
+      if (blob.size === 0) {
+        alert('Downloaded file is empty. Please upload a valid resume.');
+        return;
+      }
+
+      console.log('Downloaded PDF size:', blob.size);
+      
+      // Create blob URL and trigger download
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `resume-${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up blob URL
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      
+      console.log('✓ Resume downloaded successfully');
     } catch (error) {
       console.error('Error downloading resume:', error);
-      alert('An error occurred while downloading the resume.');
+      alert('Failed to download resume. Please try again or contact support.');
     } finally {
       setDownloadLoading(false);
     }

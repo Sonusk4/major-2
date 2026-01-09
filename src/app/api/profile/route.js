@@ -52,6 +52,23 @@ export async function POST(request) {
     }
 
     const reqBody = await request.json();
+    
+    // Ensure skills is properly formatted as an array
+    if (reqBody.skills) {
+      if (Array.isArray(reqBody.skills)) {
+        reqBody.skills = reqBody.skills.filter(skill => skill && skill.trim());
+      } else if (typeof reqBody.skills === 'string') {
+        reqBody.skills = reqBody.skills.split(',').map(s => s.trim()).filter(Boolean);
+      } else {
+        reqBody.skills = [];
+      }
+    } else {
+      reqBody.skills = [];
+    }
+
+    console.log('Received profile update for user:', userData.id);
+    console.log('Request body:', reqBody);
+    console.log('Skills to save:', reqBody.skills);
 
     const profile = await Profile.findOneAndUpdate(
       { user: userData.id },
@@ -59,9 +76,17 @@ export async function POST(request) {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
+    console.log('Profile after update:', {
+      id: profile._id,
+      user: profile.user,
+      skills: profile.skills,
+      headline: profile.headline
+    });
+
     return NextResponse.json({ message: "Profile updated successfully", profile }, { status: 200 });
 
   } catch (error) {
-    return NextResponse.json({ message: 'Server error' }, { status: 500 });
+    console.error('Profile update error:', error);
+    return NextResponse.json({ message: 'Server error', error: error.message }, { status: 500 });
   }
 }

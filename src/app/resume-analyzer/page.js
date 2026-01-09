@@ -10,24 +10,35 @@ export default function ResumeAnalyzerPage() {
   const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [profileSkills, setProfileSkills] = useState([]);
   const router = useRouter();
 
   // Prefill resume text from saved profile so users don't need to paste manually
   useEffect(() => {
-    const loadProfileResume = async () => {
+    const loadProfileData = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
         const res = await fetch('/api/profile', { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
           const data = await res.json();
-          if (data.profile?.parsedResumeText) {
+          // Auto-populate skills from profile
+          if (Array.isArray(data.profile?.skills) && data.profile.skills.length > 0) {
+            setProfileSkills(data.profile.skills);
+          }
+          // Prefill with parsed resume text if available (and it's not a placeholder)
+          if (data.profile?.parsedResumeText && 
+              !data.profile.parsedResumeText.includes('PDF Resume uploaded successfully') &&
+              !data.profile.parsedResumeText.includes('PDF parsing failed') &&
+              data.profile.parsedResumeText.trim().length > 50) {
             setResumeText(data.profile.parsedResumeText);
+            setSuccessMessage('✅ Parsed resume content loaded from your profile!');
+            setTimeout(() => setSuccessMessage(''), 5000);
           }
         }
       } catch (_) {}
     };
-    loadProfileResume();
+    loadProfileData();
   }, []);
 
   const handleAutoPopulate = async () => {
@@ -144,6 +155,25 @@ export default function ResumeAnalyzerPage() {
               <p className="text-xs text-slate-400 mt-2">
                 💡 Tip: If you&apos;ve uploaded a resume in your profile, click &quot;Auto-Populate from Profile&quot; to automatically fill this field.
               </p>
+              
+              {/* Profile Skills Display */}
+              {profileSkills.length > 0 && (
+                <div className="mt-4 p-4 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+                  <div className="text-sm font-medium text-indigo-300 mb-2">
+                    <i className="fas fa-star mr-2"></i>Skills from Your Profile
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {profileSkills.map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 rounded-full text-sm bg-indigo-600/40 text-indigo-100 border border-indigo-500/50">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-indigo-300 mt-2">
+                    ✓ These skills will be used for analysis
+                  </p>
+                </div>
+              )}
             </div>
 
             {error && (

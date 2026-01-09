@@ -384,7 +384,6 @@ export default function DeveloperDashboardPage() {
                   <div key={idx} className="relative p-6 rounded-lg border border-neutral-800 bg-neutral-900/70 hover:border-violet-500/40 transition-all">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-slate-100 font-semibold">{m.headline || 'Potential Mentor'}</div>
-                      <div className="text-slate-300 text-sm">{typeof m.finalScore === 'number' ? `Score: ${m.finalScore}` : ''}</div>
                     </div>
                     <div className="text-slate-300 text-sm mb-1">{[m.state, m.district, m.college].filter(Boolean).join(' • ')}</div>
                     <div className="text-slate-200 text-sm">Skills: {(m.skills || []).join(', ')}</div>
@@ -446,8 +445,33 @@ export default function DeveloperDashboardPage() {
                     <div className={`text-xs uppercase tracking-wide ${r.status === 'accepted' ? 'text-emerald-400' : r.status === 'pending' ? 'text-amber-300' : 'text-rose-400'}`}>{r.status}</div>
                   </div>
                   <div className="text-slate-300 text-sm mb-1">{[r.mentorState, r.mentorDistrict, r.mentorCollege].filter(Boolean).join(' • ')}</div>
-                  {r.mentorSkills && r.mentorSkills.length > 0 && (
-                    <div className="text-slate-300 text-sm mb-2">Skills: {r.mentorSkills.join(', ')}</div>
+                  {r.status === 'pending' && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const token = localStorage.getItem('token');
+                          if (!token) return;
+                          const res = await fetch('/api/mentor/cancel', { 
+                            method: 'POST', 
+                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify({ mentorshipId: r.id }) 
+                          });
+                          if (res.ok) {
+                            // Refresh my requests list
+                            const mr = await fetch('/api/mentor/my-requests', { headers: { 'Authorization': `Bearer ${token}` } });
+                            if (mr.ok) {
+                              const d = await mr.json();
+                              setMyRequests(Array.isArray(d.requests) ? d.requests : []);
+                            }
+                          }
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-semibold text-slate-100 bg-rose-600 hover:shadow-[0_0_20px_rgba(244,63,94,0.45)] transition-all"
+                      >
+                        <i className="fas fa-times mr-2" />
+                        Cancel Request
+                      </button>
+                    </div>
                   )}
                   {r.status === 'accepted' && (
                     <div className="mt-2 flex gap-2">
@@ -488,8 +512,7 @@ export default function DeveloperDashboardPage() {
                     <div className="text-slate-100 font-semibold">{r.menteeName} {r.menteeHeadline ? `• ${r.menteeHeadline}` : ''}</div>
                     <div className={`text-xs uppercase tracking-wide ${r.status === 'accepted' ? 'text-emerald-400' : r.status === 'pending' ? 'text-amber-300' : 'text-rose-400'}`}>{r.status}</div>
                   </div>
-                  <div className="text-slate-300 text-sm mb-1">{[r.menteeState, r.menteeDistrict, r.menteeCollege].filter(Boolean).join(' • ')}</div>
-                  <div className="text-slate-200 text-sm">Skills: {(r.menteeSkills || []).join(', ')}</div>
+                  <div className="text-slate-300 text-sm mb-2">{[r.menteeState, r.menteeDistrict, r.menteeCollege].filter(Boolean).join(' • ')}</div>
                   {r.status === 'pending' && (
                     <div className="mt-3 flex gap-2">
                       <button

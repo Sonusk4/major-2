@@ -46,10 +46,14 @@ const ProfileSchema = new mongoose.Schema({
   },
   // Profile Media
   profilePicture: {
-    type: String, // URL to stored image
+    type: String, // URL to stored image (Cloudinary)
   },
   resumePDF: {
-    type: String, // URL to stored PDF
+    type: mongoose.Schema.Types.ObjectId, // GridFS file ID in MongoDB
+    ref: 'fs.files'
+  },
+  resumeFileName: {
+    type: String, // Original filename for download
   },
   // Professional Information
   headline: {

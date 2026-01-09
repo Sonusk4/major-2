@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from './components/Navbar';
 import dynamic from 'next/dynamic';
 import HeroFallback from './components/HeroFallback';
@@ -13,7 +14,15 @@ export default function HomePage() {
   const isMobile = useIsMobile();
   const reduced = usePrefersReducedMotion();
   const [mounted, setMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
   useEffect(() => setMounted(true), []);
+
+  const handleGetStarted = () => {
+    setIsLoading(true);
+    router.push('/login');
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden">
@@ -34,11 +43,18 @@ export default function HomePage() {
             CareerHub connects talent with opportunity — discover real projects, build your portfolio, and collaborate with teams.
           </p>
           <div className="flex items-center gap-4">
-            <Link href="/login" data-testid="hero-cta" className="inline-block">
-              <button className="px-6 py-3 rounded-md font-semibold bg-[hsl(190,100%,50%)] text-black hover:opacity-90 transition shadow-lg">
-                Get Started
-              </button>
-            </Link>
+            <button onClick={handleGetStarted} disabled={isLoading} data-testid="hero-cta" className="inline-block">
+              <div className="px-6 py-3 rounded-md font-semibold bg-[hsl(190,100%,50%)] text-black hover:opacity-90 transition shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2">
+                {isLoading ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                    Loading...
+                  </>
+                ) : (
+                  'Get Started'
+                )}
+              </div>
+            </button>
             <a href="#about" className="text-sm md:text-base text-white/80 hover:text-white transition underline-offset-4 hover:underline">
               Learn more
             </a>

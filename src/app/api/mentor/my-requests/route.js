@@ -21,7 +21,7 @@ export async function GET(request) {
     const authUser = getDataFromToken(request);
     if (!authUser) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-    const requests = await Mentorship.find({ mentee: authUser.id })
+    const requests = await Mentorship.find({ mentee: authUser.id, status: { $ne: 'cancelled' } })
       .sort({ createdAt: -1 })
       .lean();
 

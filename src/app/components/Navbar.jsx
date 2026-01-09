@@ -39,11 +39,6 @@
              CareerHub
            </div>
          </Link>
-         {/* Desktop CTA */}
-         <Link href="/login" className="hidden md:block" data-testid="nav-cta">
-           <Button className="shadow-lg">Get Started</Button>
-         </Link>
- 
          {/* Mobile Menu Button */}
          <button
            className="md:hidden text-foreground hover:text-[hsl(190,100%,50%)] transition-colors"
@@ -59,17 +54,14 @@
          <div className="md:hidden glass mt-4 mx-4 p-2 rounded-lg animate-fade-in">
            <div className="flex flex-col gap-2">
              <Link href="/projects" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-               <div className="w-full px-4 py-3 rounded-md text-sm font-medium hover:bg-white/10 transition">
+               <div className="w-full px-4 py-3 rounded-md text-sm font-medium hover:text-[hsl(190,100%,50%)] transition-colors duration-200">
                  Projects
                </div>
              </Link>
              <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-               <div className="w-full px-4 py-3 rounded-md text-sm font-medium hover:bg-white/10 transition">
+               <div className="w-full px-4 py-3 rounded-md text-sm font-medium hover:text-[hsl(190,100%,50%)] transition-colors duration-200">
                  My Profile
                </div>
-             </Link>
-             <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="block w-full">
-               <Button className="w-full">Get Started</Button>
              </Link>
            </div>
          </div>

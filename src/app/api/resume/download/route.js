@@ -26,15 +26,38 @@ export async function GET(request) {
     // Get profile with resume PDF URL
     const profile = await Profile.findOne({ user: decoded.id });
     if (!profile || !profile.resumePDF) {
+      console.log('Profile or resumePDF not found:', { 
+        profileExists: !!profile, 
+        resumePDFUrl: profile?.resumePDF 
+      });
       return NextResponse.json({ message: 'No resume found' }, { status: 404 });
     }
 
-    // Add Cloudinary download parameters to force PDF download
-    // fl_attachment adds Content-Disposition header to trigger download
-    const downloadUrl = profile.resumePDF.replace(
-      '/upload/',
-      '/upload/fl_attachment/'
-    );
+    console.log('Resume PDF URL from profile:', profile.resumePDF);
+    console.log('URL format check:', {
+      includesCloudinary: profile.resumePDF.includes('cloudinary.com'),
+      includesRawUpload: profile.resumePDF.includes('/raw/upload/'),
+      url: profile.resumePDF
+    });
+
+    // For Cloudinary raw resources, ensure proper download parameters
+    let downloadUrl = profile.resumePDF;
+    
+    // If it's a Cloudinary URL, add attachment flag to force download
+    if (downloadUrl.includes('cloudinary.com')) {
+      // For raw resources, add fl_attachment parameter
+      if (downloadUrl.includes('/raw/upload/')) {
+        downloadUrl = downloadUrl.includes('?') 
+          ? downloadUrl + '&fl_attachment' 
+          : downloadUrl + '?fl_attachment';
+      } else if (downloadUrl.includes('/upload/')) {
+        downloadUrl = downloadUrl.includes('?') 
+          ? downloadUrl + '&fl_attachment' 
+          : downloadUrl + '?fl_attachment';
+      }
+    }
+
+    console.log('Download URL with parameters:', downloadUrl);
 
     // Return the Cloudinary URL with download parameters
     return NextResponse.json({

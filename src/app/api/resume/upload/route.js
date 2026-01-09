@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET?.trim();
 
 // This helper function correctly extracts the token from the 'Authorization' header
 const getDataFromToken = (request) => {
@@ -47,119 +47,83 @@ export async function POST(request) {
     }
 
     const fileBuffer = await file.arrayBuffer();
-    console.log('File buffer size:', fileBuffer.length);
+    console.log('File buffer size:', fileBuffer.byteLength);
     
-    // Parse PDF to extract text
-    let parsedText = `PDF Resume uploaded successfully. Please use the Resume Analyzer to paste your resume content for analysis, or manually enter your information in your profile.`;
+    // Store placeholder text - we won't parse PDF
+    // Users will upload in profile, and use Resume Analyzer to paste or auto-populate
+    let parsedText = `Resume PDF uploaded successfully on ${new Date().toLocaleDateString()}. Please go to Resume Analyzer to analyze your resume.`;
     
     try {
-      // Dynamic import to avoid module loading issues
+      // Attempt to parse PDF to extract text
       const pdfParse = (await import('pdf-parse')).default;
-      const pdfData = await pdfParse(Buffer.from(fileBuffer));
-      if (pdfData.text && pdfData.text.trim().length > 0) {
-        parsedText = pdfData.text;
-        console.log('PDF parsed successfully, text length:', parsedText.length);
-      } else {
-        console.log('PDF parsed but no text content found');
+      const bufferInstance = Buffer.from(fileBuffer);
+      
+      if (bufferInstance && bufferInstance.length > 0) {
+        const pdfData = await pdfParse(bufferInstance);
+        if (pdfData.text && pdfData.text.trim().length > 50) {
+          parsedText = pdfData.text;
+          console.log('✓ PDF parsed successfully, text length:', parsedText.length);
+        }
       }
     } catch (parseError) {
-      console.error('PDF parsing error (non-critical):', parseError.message);
-      // Continue with placeholder text if parsing fails
-      parsedText = `Resume PDF uploaded. Content: [PDF parsing failed - please review the uploaded file manually in the Resume Analyzer]`;
+      console.error('PDF parsing skipped (non-critical):', parseError.message);
+      // Continue with simple message if parsing fails
     }
 
-    // Upload PDF to Cloudinary with fallback
+    // Upload PDF to Cloudinary using UNSIGNED upload (public, no auth needed)
     let uploadResult;
-    let uploadError;
+    let publicId;
 
-    // Method 1: Try unsigned upload first
+    const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET;
+
+    if (!CLOUDINARY_UPLOAD_PRESET) {
+      return NextResponse.json({ 
+        message: 'Cloudinary upload preset not configured',
+        debug: 'Missing CLOUDINARY_UPLOAD_PRESET'
+      }, { status: 500 });
+    }
+
     try {
-      const cloudinaryFormData = new FormData();
-      cloudinaryFormData.append('file', new Blob([fileBuffer], { type: file.type }), file.name);
-      cloudinaryFormData.append('upload_preset', 'career_hub_unsigned');
-      cloudinaryFormData.append('folder', 'career-hub/resumes');
-      cloudinaryFormData.append('public_id', `resume-${userData.id}-${Date.now()}`);
-      cloudinaryFormData.append('resource_type', 'raw');
+      publicId = `resume-${userData.id}-${Date.now()}`;
+      
+      // Create form data for UNSIGNED upload (uses preset, no signature needed)
+      const formData = new FormData();
+      formData.append('file', new Blob([fileBuffer], { type: file.type }), file.name);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', 'resumes');
+      formData.append('public_id', publicId);
 
       const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
       
-      console.log('Attempting unsigned resume upload...');
+      console.log('Uploading resume to Cloudinary (UNSIGNED)...');
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        body: cloudinaryFormData
+        body: formData
       });
 
       const responseText = await response.text();
       
-      if (response.ok) {
-        uploadResult = JSON.parse(responseText);
-        console.log('✓ Unsigned resume upload successful');
-      } else {
-        uploadError = `Unsigned upload failed: ${response.status}`;
-        console.log(uploadError, responseText.substring(0, 200));
-      }
-    } catch (err) {
-      uploadError = err.message;
-      console.log('Unsigned upload error, will try signed:', uploadError);
-    }
-
-    // Method 2: Fallback to signed upload if unsigned fails
-    if (!uploadResult) {
-      if (!CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-        return NextResponse.json({ 
-          message: 'Cloudinary not properly configured',
-          debug: 'Missing API credentials for signed upload'
-        }, { status: 500 });
-      }
-
-      try {
-        const cloudinaryFormData = new FormData();
-        cloudinaryFormData.append('file', new Blob([fileBuffer], { type: file.type }), file.name);
-        cloudinaryFormData.append('folder', 'career-hub/resumes');
-        cloudinaryFormData.append('public_id', `resume-${userData.id}-${Date.now()}`);
-        cloudinaryFormData.append('resource_type', 'raw');
-        cloudinaryFormData.append('api_key', CLOUDINARY_API_KEY);
-        
-        // Add timestamp for signed upload
-        const timestamp = Math.floor(Date.now() / 1000);
-        cloudinaryFormData.append('timestamp', timestamp.toString());
-        
-        // Create signature - correct format
-        const crypto = require('crypto');
-        const signatureString = `folder=career-hub/resumes&public_id=resume-${userData.id}-${Date.now()}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
-        const signature = crypto.createHash('sha1').update(signatureString).digest('hex');
-        cloudinaryFormData.append('signature', signature);
-
-        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
-        
-        console.log('Attempting signed resume upload...');
-
-        const response = await fetch(uploadUrl, {
-          method: 'POST',
-          body: cloudinaryFormData
+      if (!response.ok) {
+        console.error('Cloudinary upload failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseText.substring(0, 500)
         });
-
-        const responseText = await response.text();
-        
-        if (!response.ok) {
-          console.error('Signed upload failed:', {
-            status: response.status,
-            statusText: response.statusText,
-            body: responseText.substring(0, 500)
-          });
-          throw new Error(`Signed upload failed: ${response.status} ${response.statusText}`);
-        }
-
-        uploadResult = JSON.parse(responseText);
-        console.log('✓ Signed resume upload successful');
-      } catch (err) {
-        console.error('Signed upload error:', err);
         return NextResponse.json({ 
           message: 'Failed to upload resume to Cloudinary',
-          error: err.message
+          error: responseText.substring(0, 200)
         }, { status: 500 });
       }
+
+      uploadResult = JSON.parse(responseText);
+      console.log('✓ Resume uploaded successfully to Cloudinary (UNSIGNED)');
+    } catch (err) {
+      console.error('Resume upload error:', err);
+      return NextResponse.json({ 
+        message: 'Failed to upload resume',
+        error: err.message
+      }, { status: 500 });
     }
 
     if (!uploadResult || !uploadResult.secure_url) {
@@ -170,34 +134,40 @@ export async function POST(request) {
       }, { status: 500 });
     }
 
-    const pdfUrl = uploadResult.secure_url;
+    let pdfUrl = uploadResult.secure_url;
+    
+    // For unsigned uploads, Cloudinary might return URLs that need .pdf extension
+    if (!pdfUrl.endsWith('.pdf')) {
+      pdfUrl = pdfUrl + '.pdf';
+    }
+
+    console.log('Final PDF URL:', pdfUrl);
+
+    console.log('Before saving to profile:');
+    console.log('  uploadResult.public_id:', uploadResult.public_id);
+    console.log('  pdfUrl:', pdfUrl);
+
+    // Use the auto-generated public_id from Cloudinary response
+    const cloudinaryPublicId = uploadResult.public_id || publicId;
 
     // Always save the profile, even if parsing failed
-    // The user can manually edit their profile information later
-
     const updatedProfile = await Profile.findOneAndUpdate(
       { user: userData.id },
       { 
-        $set: { 
-          parsedResumeText: parsedText,
-          resumePDF: pdfUrl
-        },
-        $setOnInsert: { 
-          headline: "Software Developer",
-          bio: "Resume uploaded",
-          skills: [],
-          experience: [],
-          education: []
-        }
+        parsedResumeText: parsedText,
+        resumePDF: pdfUrl,
+        resumePublicId: cloudinaryPublicId,
+        headline: "Software Developer",
+        bio: "Resume uploaded"
       },
       { upsert: true, new: true }
     );
 
-    console.log('Resume upload - User ID:', userData.id);
-    console.log('Resume upload - Profile updated:', !!updatedProfile);
-    console.log('Resume upload - PDF URL:', pdfUrl);
+    console.log('✓ Resume saved to profile');
+    console.log('Updated profile resumePublicId:', updatedProfile?.resumePublicId);
+    console.log('Resume URL:', pdfUrl);
 
-    return NextResponse.json({ message: "Resume uploaded successfully to cloud", fileUrl: pdfUrl }, { status: 200 });
+    return NextResponse.json({ message: "Resume uploaded successfully", fileUrl: pdfUrl }, { status: 200 });
   } catch (error) {
     console.error('Resume upload error:', error);
     return NextResponse.json({ message: "Server Error", error: error.message }, { status: 500 });
