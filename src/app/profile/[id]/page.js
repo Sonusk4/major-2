@@ -347,7 +347,7 @@ export default function PublicProfilePage() {
                 )}
                 {Array.isArray(analysis.whyNotGood) && analysis.whyNotGood.length > 0 && (
                   <div>
-                    <div className="font-semibold mb-2 text-amber-400">⚠ What's Missing/Gaps</div>
+                    <div className="font-semibold mb-2 text-amber-400">⚠ What&apos;s Missing/Gaps</div>
                     <div className="space-y-2">
                       {analysis.whyNotGood.map((item, i) => (
                         <div key={i} className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
