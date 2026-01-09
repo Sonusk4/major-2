@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +38,15 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen min-h-dvh bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950" style={{ minHeight: '100vh' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-dvh flex flex-col" style={{ minHeight: '100vh' }}>
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={() => router.back()}
+            className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity"
+            title="Go back"
+          >
+            CareerHub
+          </button>
+        </div>
         <h1 className="text-4xl font-extrabold text-white mb-8 tracking-tight">
           <span className="bg-gradient-to-r from-sky-300 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent">Explore Projects</span>
         </h1>

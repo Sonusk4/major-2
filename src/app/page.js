@@ -8,7 +8,6 @@ import { useIsMobile, usePrefersReducedMotion } from '../hooks/useMediaQuery';
 import { useEffect, useState } from 'react';
 
 const Hero3D = dynamic(() => import('./components/Hero3D'), { ssr: false, loading: () => null });
-const Navbar = dynamic(() => import('./components/Navbar'), { ssr: false });
 
 export default function HomePage() {
   const isMobile = useIsMobile();
@@ -26,8 +25,6 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <Navbar />
-
       {/* Hero */}
       <section className="relative pt-28 pb-24 min-h-[80vh]">
         {/* Base CSS fallback layer (always present) */}

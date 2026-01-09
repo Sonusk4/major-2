@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function MyApplicationsPage() {
+  const router = useRouter();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,6 +61,15 @@ export default function MyApplicationsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-slate-900 to-emerald-950">
       <div className="max-w-3xl mx-auto px-6 py-10">
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={() => router.back()}
+            className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity"
+            title="Go back"
+          >
+            CareerHub
+          </button>
+        </div>
         <h1 className="text-3xl font-extrabold text-slate-100 mb-6 drop-shadow-[0_0_16px_rgba(16,185,129,0.35)]">My Applications</h1>
         <div className="flex flex-col gap-4">
           {applications.length > 0 ? (
