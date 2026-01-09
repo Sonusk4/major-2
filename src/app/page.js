@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Navbar from './components/Navbar';
 import dynamic from 'next/dynamic';
 import HeroFallback from './components/HeroFallback';
 import { useIsMobile, usePrefersReducedMotion } from '../hooks/useMediaQuery';
 import { useEffect, useState } from 'react';
 
 const Hero3D = dynamic(() => import('./components/Hero3D'), { ssr: false, loading: () => null });
+const Navbar = dynamic(() => import('./components/Navbar'), { ssr: false });
 
 export default function HomePage() {
   const isMobile = useIsMobile();
